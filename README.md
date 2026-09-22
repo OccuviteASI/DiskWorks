@@ -4,7 +4,7 @@ DiskWorks is a disk and partition manager for people who would rather not open a
 terminal. It shows your drives the way Windows Disk Management does and offers the
 detailed operations of GParted, on Windows, Linux and macOS, from one window.
 
-**Status: 0.2.1** (Windows x64 and Linux x86_64 built and tested here; macOS Apple Silicon
+**Status: 0.2.2** (Windows x64 and Linux x86_64 built and tested here; macOS Apple Silicon
 builds with `./build-mac.sh`, see `MACOS.md` — not yet run on a Mac). See
 `ARCHITECTURE.md` for how it is built, `REQUIREMENTS.md` for what it must do, what is
 done and what was deliberately left out, and `CHANGELOG.md` for releases.

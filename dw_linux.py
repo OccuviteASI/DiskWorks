@@ -134,7 +134,8 @@ class RawDevice:
 
 
 def reread_table(path: str, log=None) -> None:
-    """Ask the kernel to re-read the partition table; fall back to blockdev."""
+    """Ask the kernel to re-read the partition table; fall back to blockdev, then make sure the
+    kernel's partition list matches the table (partx / partprobe when the ioctl was a no-op)."""
     try:
         fd = os.open(path, os.O_RDONLY)
         try:
@@ -144,8 +145,64 @@ def reread_table(path: str, log=None) -> None:
     except OSError:
         if tool("blockdev"):
             run(["blockdev", "--rereadpt", path], timeout=30, log=log, title="Re-read partition table")
+    settle()
+    sync_partition_nodes(path, log=log)
+
+
+def settle() -> None:
     if shutil.which("udevadm"):
         subprocess.run(["udevadm", "settle", "--timeout=10"], capture_output=True)
+
+
+def kernel_partition_count(path: str) -> int | None:
+    """How many partitions the kernel currently exposes for this disk (sda1, loop0p1, nvme0n1p1 ...)."""
+    name = os.path.basename(os.path.realpath(path))
+    sysdir = f"/sys/class/block/{name}"
+    if not os.path.isdir(sysdir):
+        return None
+    try:
+        return sum(1 for e in os.listdir(sysdir) if e.startswith(name) and os.path.isfile(os.path.join(sysdir, e, "partition")))
+    except OSError:
+        return None
+
+
+def table_partition_count(path: str) -> int | None:
+    """How many partitions the on-disk table holds, per sfdisk; None when unknown, 0 when there is no table."""
+    if not tool("sfdisk"):
+        return None
+    try:
+        code, out = run(["sfdisk", "-J", path], timeout=30)
+    except RuntimeError:
+        return None
+    if code != 0:
+        return 0 if "does not contain a recognized partition table" in out else None
+    try:
+        import json
+        return len(json.loads(out).get("partitiontable", {}).get("partitions", []))
+    except (ValueError, AttributeError):
+        return None
+
+
+def sync_partition_nodes(path: str, log=None) -> None:
+    """BLKRRPART can succeed without changing anything (seen on loop devices under some kernels):
+    the table on disk then differs from what the kernel exposes and /dev/<disk>p1 never appears.
+    Compare the two and ask partx (BLKPG add / delete / resize per partition), then partprobe,
+    to reconcile them. Nothing runs when they already agree."""
+    want = table_partition_count(path)
+    have = kernel_partition_count(path)
+    if want is None or have is None or want == have:
+        return
+    if log:
+        log(f"kernel: {have} partition(s), table: {want}", 0, 0, "", "Partition table not picked up by the kernel")
+    for argv in (["partx", "-u", path], ["partprobe", path]):
+        if not tool(argv[0]):
+            continue
+        run(argv, timeout=60, log=log, title="Register partitions with the kernel")
+        settle()
+        if kernel_partition_count(path) == want:
+            return
+    if log:
+        log(f"kernel still shows {kernel_partition_count(path)} partition(s) on {path}", 1, 0, "", "Register partitions with the kernel")
 
 
 # ----------------------------------------------------------------------------

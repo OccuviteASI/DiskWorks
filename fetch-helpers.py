@@ -43,7 +43,7 @@ DOWNLOADS: dict[str, dict] = {
 
 # Linux: package -> the executables DiskWorks calls (dw_fs.LINUX_TOOLS / LINUX_TABLE_TOOLS)
 LINUX_PACKAGES: dict[str, list[str]] = {
-    "util-linux": ["sfdisk", "wipefs", "blkid", "blockdev", "mkswap", "swaplabel", "losetup"],
+    "util-linux": ["sfdisk", "wipefs", "blkid", "blockdev", "mkswap", "swaplabel", "losetup", "partx"],
     "gdisk": ["sgdisk"],
     "e2fsprogs": ["mkfs.ext4", "mkfs.ext3", "mkfs.ext2", "mke2fs", "resize2fs", "e2fsck", "e2label", "tune2fs", "dumpe2fs", "e2image"],
     "xfsprogs": ["mkfs.xfs", "xfs_growfs", "xfs_repair", "xfs_admin", "xfs_db", "xfs_io"],

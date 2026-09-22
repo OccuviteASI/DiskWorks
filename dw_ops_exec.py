@@ -143,7 +143,10 @@ def run_step(helper, rid: int, args: dict) -> dict:
     title = step.get("title") or kind
     log = helper.log_cmd(rid)
     if expect_hash:
+        # Compare against the same refined view the window planned on: the raw lsblk view can
+        # lack the table type (no udev database, e.g. in containers) and would refuse every step.
         inv = di.inventory()
+        helper.refine(inv, rid)
         if inv.get("hash") != expect_hash:
             raise RuntimeError("The disks changed since the plan was made. Nothing was done; review the queue.")
         helper.inventory_cache = inv

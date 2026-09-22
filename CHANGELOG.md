@@ -4,6 +4,24 @@ All notable changes to DiskWorks. The version number is defined once, in
 `diskworks.py` (`VERSION`), and read by the UI and `build.py`. Clicking the version
 pill in the app shows the section below that matches the running version.
 
+## 0.2.2 - 2026-09-22
+
+- **Fix (Linux, operations):** after a partition-table write the engine now checks that the
+  kernel actually picked the table up. On some kernels the re-read request succeeds without
+  registering the new partitions (seen with loop devices on Linux 6.18), so
+  `/dev/<disk>p1` never appeared and the format step failed with "did not appear". When the
+  kernel's partition count differs from the table's, the helper runs `partx -u` (per-partition
+  add / remove / resize), then `partprobe`, and logs both counts. Nothing runs when they agree.
+  `partx` joins the bundled util-linux tools.
+- **Fix (Linux, operations):** the helper's safety check before each step ("the disks changed
+  since the plan was made") compared against the raw `lsblk` view, which has no partition-table
+  type where no udev database exists (containers, minimal systems) and therefore refused every
+  step on such a disk. It now compares against the same refined view the window planned on.
+- Verified in a Linux container (root, loop disks, Python 3.14): 17 operation steps in three
+  queues (GPT table, create ext4 / exFAT, label, shrink ext4, check, delete, FAT32 format,
+  zero-wipe), the imaging round trip (raw write + verify, `.img.zst` backup + manifest +
+  verify, sparse raw backup) and the ext4 access ladder (mount, list, unmount).
+
 ## 0.2.1 - 2026-09-22
 
 - **Fix (Speed):** testing the Windows system drive (C:) failed with "Access is denied".
