@@ -1,0 +1,10 @@
+# Runtime + build requirements for the native-window app.
+# `python diskworks.py --browser` / `--no-open` need nothing beyond the standard library
+# (pycdlib and pyfatfs are optional: Windows-ISO mode and the FAT32 formatter use them).
+pywebview==6.2.1
+pythonnet>=3.1.0 ; sys_platform == "win32"
+qtpy>=2.4 ; sys_platform == "linux"
+PySide6==6.11.2 ; sys_platform == "linux"
+pyinstaller>=6.22
+pycdlib>=1.14
+pyfatfs>=1.1

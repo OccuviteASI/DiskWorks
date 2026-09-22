@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+dist/
+build/
+bin/
+!bin/README.md
+*.spec
+tools/fixtures/local-*.json
+.venv/
+.DS_Store
+*.vhdx

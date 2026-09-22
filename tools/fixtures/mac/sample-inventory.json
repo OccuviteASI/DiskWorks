@@ -1,0 +1,537 @@
+{
+ "ts": 1789173301.3863485,
+ "platform": "darwin",
+ "hash": "c1bf404147632277",
+ "elevated": false,
+ "disks": [
+  {
+   "id": "disk:disk0",
+   "number": 0,
+   "name": "disk0",
+   "path": "/dev/disk0",
+   "rawPath": "/dev/rdisk0",
+   "model": "APPLE SSD AP1024Z Media",
+   "serial": "",
+   "bus": "Apple Fabric",
+   "media": "SSD",
+   "size": 1000555581440,
+   "logicalSector": 4096,
+   "physicalSector": 4096,
+   "table": "gpt",
+   "removable": false,
+   "hotplug": false,
+   "internal": true,
+   "system": true,
+   "boot": true,
+   "readonly": false,
+   "offline": false,
+   "clustered": false,
+   "health": "",
+   "location": "",
+   "uniqueId": "1A2B3C4D-0000-4000-8000-000000000001",
+   "largestFree": 0,
+   "guid": "1A2B3C4D-0000-4000-8000-000000000001",
+   "partitions": [
+    {
+     "id": "part:disk0s1",
+     "disk": "disk:disk0",
+     "number": 1,
+     "start": 24576,
+     "size": 524288000,
+     "typeGuid": "69646961-6700-11aa-aa11-00306543ecac",
+     "mbrType": null,
+     "typeName": "Apple APFS (iSC preboot)",
+     "guid": null,
+     "name": null,
+     "fs": null,
+     "fsSource": null,
+     "fsVersion": null,
+     "label": "",
+     "uuid": null,
+     "letter": null,
+     "mountpoints": [],
+     "used": null,
+     "free": null,
+     "volSize": null,
+     "flags": {
+      "boot": false,
+      "system": false,
+      "active": false,
+      "hidden": true,
+      "readonly": false,
+      "esp": false
+     },
+     "health": "",
+     "device": "/dev/disk0s1",
+     "rawDevice": "/dev/rdisk0s1",
+     "holders": [],
+     "swapActive": false,
+     "pagefile": false,
+     "isBootVolume": false,
+     "approx": true,
+     "content": "Apple_APFS_ISC",
+     "end": 524312576,
+     "locked": [],
+     "allow": []
+    },
+    {
+     "id": "part:disk0s2",
+     "disk": "disk:disk0",
+     "number": 2,
+     "start": 524312576,
+     "size": 994662584320,
+     "typeGuid": "7c3457ef-0000-11aa-aa11-00306543ecac",
+     "mbrType": null,
+     "typeName": "Apple APFS",
+     "guid": null,
+     "name": null,
+     "fs": "apfs",
+     "fsSource": "os",
+     "fsVersion": null,
+     "label": "Macintosh HD, Macintosh HD - Data",
+     "uuid": null,
+     "letter": null,
+     "mountpoints": [
+      "/",
+      "/System/Volumes/Preboot",
+      "/System/Volumes/Data",
+      "/System/Volumes/VM"
+     ],
+     "used": 341573378048,
+     "free": 653089206272,
+     "volSize": 994662584320,
+     "flags": {
+      "boot": false,
+      "system": false,
+      "active": false,
+      "hidden": false,
+      "readonly": false,
+      "esp": false
+     },
+     "health": "",
+     "device": "/dev/disk0s2",
+     "rawDevice": "/dev/rdisk0s2",
+     "holders": [],
+     "swapActive": false,
+     "pagefile": false,
+     "isBootVolume": true,
+     "approx": true,
+     "content": "Apple_APFS",
+     "apfsContainer": "disk3",
+     "apfsVolumes": [
+      {
+       "device": "disk3s1",
+       "name": "Macintosh HD",
+       "used": 11934617600,
+       "mountpoint": "/",
+       "roles": [
+        "System"
+       ],
+       "internal": false
+      },
+      {
+       "device": "disk3s2",
+       "name": "Preboot",
+       "used": 6442450944,
+       "mountpoint": "/System/Volumes/Preboot",
+       "roles": [
+        "Preboot"
+       ],
+       "internal": true
+      },
+      {
+       "device": "disk3s3",
+       "name": "Recovery",
+       "used": 1073741824,
+       "mountpoint": "",
+       "roles": [
+        "Recovery"
+       ],
+       "internal": true
+      },
+      {
+       "device": "disk3s5",
+       "name": "Macintosh HD - Data",
+       "used": 322122547200,
+       "mountpoint": "/System/Volumes/Data",
+       "roles": [
+        "Data"
+       ],
+       "internal": false
+      },
+      {
+       "device": "disk3s6",
+       "name": "VM",
+       "used": 20480,
+       "mountpoint": "/System/Volumes/VM",
+       "roles": [
+        "VM"
+       ],
+       "internal": true
+      }
+     ],
+     "end": 995186896896,
+     "locked": [
+      "Holds the running operating system"
+     ],
+     "allow": [
+      "resize",
+      "label",
+      "check"
+     ]
+    },
+    {
+     "id": "part:disk0s3",
+     "disk": "disk:disk0",
+     "number": 3,
+     "start": 995186896896,
+     "size": 5368664064,
+     "typeGuid": "52637672-7900-11aa-aa11-00306543ecac",
+     "mbrType": null,
+     "typeName": "Apple APFS recovery",
+     "guid": null,
+     "name": null,
+     "fs": null,
+     "fsSource": null,
+     "fsVersion": null,
+     "label": "",
+     "uuid": null,
+     "letter": null,
+     "mountpoints": [],
+     "used": null,
+     "free": null,
+     "volSize": null,
+     "flags": {
+      "boot": false,
+      "system": false,
+      "active": false,
+      "hidden": true,
+      "readonly": false,
+      "esp": false
+     },
+     "health": "",
+     "device": "/dev/disk0s3",
+     "rawDevice": "/dev/rdisk0s3",
+     "holders": [],
+     "swapActive": false,
+     "pagefile": false,
+     "isBootVolume": false,
+     "approx": true,
+     "content": "Apple_APFS_Recovery",
+     "end": 1000555560960,
+     "locked": [],
+     "allow": []
+    }
+   ],
+   "approx": true,
+   "gaps": [],
+   "segments": [
+    {
+     "kind": "part",
+     "id": "part:disk0s1",
+     "start": 24576,
+     "size": 524288000
+    },
+    {
+     "kind": "part",
+     "id": "part:disk0s2",
+     "start": 524312576,
+     "size": 994662584320
+    },
+    {
+     "kind": "part",
+     "id": "part:disk0s3",
+     "start": 995186896896,
+     "size": 5368664064
+    }
+   ],
+   "locked": [
+    "Holds the running operating system"
+   ]
+  },
+  {
+   "id": "disk:disk4",
+   "number": 4,
+   "name": "disk4",
+   "path": "/dev/disk4",
+   "rawPath": "/dev/rdisk4",
+   "model": "SanDisk Ultra USB 3.0 Media",
+   "serial": "",
+   "bus": "USB",
+   "media": "SSD",
+   "size": 123042004992,
+   "logicalSector": 512,
+   "physicalSector": 512,
+   "table": "gpt",
+   "removable": true,
+   "hotplug": true,
+   "internal": false,
+   "system": false,
+   "boot": false,
+   "readonly": false,
+   "offline": false,
+   "clustered": false,
+   "health": "",
+   "location": "",
+   "uniqueId": "1A2B3C4D-0000-4000-8000-000000000004",
+   "largestFree": 0,
+   "guid": "1A2B3C4D-0000-4000-8000-000000000004",
+   "partitions": [
+    {
+     "id": "part:disk4s1",
+     "disk": "disk:disk4",
+     "number": 1,
+     "start": 20480,
+     "size": 209715200,
+     "typeGuid": "c12a7328-f81f-11d2-ba4b-00a0c93ec93b",
+     "mbrType": null,
+     "typeName": "EFI System",
+     "guid": null,
+     "name": "EFI",
+     "fs": "fat32",
+     "fsSource": "os",
+     "fsVersion": null,
+     "label": "EFI",
+     "uuid": null,
+     "letter": null,
+     "mountpoints": [],
+     "used": null,
+     "free": null,
+     "volSize": null,
+     "flags": {
+      "boot": false,
+      "system": false,
+      "active": false,
+      "hidden": false,
+      "readonly": false,
+      "esp": true
+     },
+     "health": "",
+     "device": "/dev/disk4s1",
+     "rawDevice": "/dev/rdisk4s1",
+     "holders": [],
+     "swapActive": false,
+     "pagefile": false,
+     "isBootVolume": false,
+     "approx": false,
+     "content": "EFI",
+     "end": 209735680,
+     "locked": [
+      "EFI System partition (the computer boots from it)"
+     ],
+     "allow": []
+    },
+    {
+     "id": "part:disk4s2",
+     "disk": "disk:disk4",
+     "number": 2,
+     "start": 209735680,
+     "size": 64424509440,
+     "typeGuid": "ebd0a0a2-b9e5-4433-87c0-68b6b72699c7",
+     "mbrType": null,
+     "typeName": "Basic data",
+     "guid": null,
+     "name": "WINDATA",
+     "fs": "ntfs",
+     "fsSource": "os",
+     "fsVersion": null,
+     "label": "WINDATA",
+     "uuid": "9B8A7C6D-1111-4222-8333-444455556666",
+     "letter": null,
+     "mountpoints": [
+      "/Volumes/WINDATA"
+     ],
+     "used": 4424509440,
+     "free": 60000000000,
+     "volSize": 64424509440,
+     "flags": {
+      "boot": false,
+      "system": false,
+      "active": false,
+      "hidden": false,
+      "readonly": true,
+      "esp": false
+     },
+     "health": "",
+     "device": "/dev/disk4s2",
+     "rawDevice": "/dev/rdisk4s2",
+     "holders": [],
+     "swapActive": false,
+     "pagefile": false,
+     "isBootVolume": false,
+     "approx": false,
+     "content": "Microsoft Basic Data",
+     "end": 64634245120,
+     "locked": [],
+     "allow": []
+    },
+    {
+     "id": "part:disk4s3",
+     "disk": "disk:disk4",
+     "number": 3,
+     "start": 64634245120,
+     "size": 32212254720,
+     "typeGuid": "48465300-0000-11aa-aa11-00306543ecac",
+     "mbrType": null,
+     "typeName": "Apple HFS+",
+     "guid": null,
+     "name": "MacStuff",
+     "fs": "hfsplus",
+     "fsSource": "os",
+     "fsVersion": null,
+     "label": "MacStuff",
+     "uuid": null,
+     "letter": null,
+     "mountpoints": [
+      "/Volumes/MacStuff"
+     ],
+     "used": 2212254720,
+     "free": 30000000000,
+     "volSize": 32212254720,
+     "flags": {
+      "boot": false,
+      "system": false,
+      "active": false,
+      "hidden": false,
+      "readonly": false,
+      "esp": false
+     },
+     "health": "",
+     "device": "/dev/disk4s3",
+     "rawDevice": "/dev/rdisk4s3",
+     "holders": [],
+     "swapActive": false,
+     "pagefile": false,
+     "isBootVolume": false,
+     "approx": false,
+     "content": "Apple_HFS",
+     "end": 96846499840,
+     "locked": [],
+     "allow": []
+    }
+   ],
+   "approx": false,
+   "gaps": [
+    {
+     "id": "gap:disk:disk4:96846499840",
+     "disk": "disk:disk4",
+     "start": 96846499840,
+     "size": 26194456576
+    }
+   ],
+   "segments": [
+    {
+     "kind": "part",
+     "id": "part:disk4s1",
+     "start": 20480,
+     "size": 209715200
+    },
+    {
+     "kind": "part",
+     "id": "part:disk4s2",
+     "start": 209735680,
+     "size": 64424509440
+    },
+    {
+     "kind": "part",
+     "id": "part:disk4s3",
+     "start": 64634245120,
+     "size": 32212254720
+    },
+    {
+     "kind": "gap",
+     "id": "gap:disk:disk4:96846499840",
+     "start": 96846499840,
+     "size": 26194456576
+    }
+   ],
+   "locked": []
+  },
+  {
+   "id": "disk:disk5",
+   "number": 5,
+   "name": "disk5",
+   "path": "/dev/disk5",
+   "rawPath": "/dev/rdisk5",
+   "model": "Kingston DataTraveler 3.0 Media",
+   "serial": "",
+   "bus": "USB",
+   "media": "SSD",
+   "size": 16008609792,
+   "logicalSector": 512,
+   "physicalSector": 512,
+   "table": "mbr",
+   "removable": true,
+   "hotplug": true,
+   "internal": false,
+   "system": false,
+   "boot": false,
+   "readonly": false,
+   "offline": false,
+   "clustered": false,
+   "health": "",
+   "location": "",
+   "uniqueId": "",
+   "largestFree": 0,
+   "guid": "",
+   "partitions": [
+    {
+     "id": "part:disk5s1",
+     "disk": "disk:disk5",
+     "number": 1,
+     "start": 1048576,
+     "size": 16007561216,
+     "typeGuid": null,
+     "mbrType": 7,
+     "typeName": "NTFS / exFAT (IFS)",
+     "guid": null,
+     "name": "NTFSSTICK",
+     "fs": "ntfs",
+     "fsSource": "os",
+     "fsVersion": null,
+     "label": "NTFSSTICK",
+     "uuid": null,
+     "letter": null,
+     "mountpoints": [
+      "/Volumes/NTFSSTICK"
+     ],
+     "used": 1007561216,
+     "free": 15000000000,
+     "volSize": 16007561216,
+     "flags": {
+      "boot": false,
+      "system": false,
+      "active": false,
+      "hidden": false,
+      "readonly": true,
+      "esp": false
+     },
+     "health": "",
+     "device": "/dev/disk5s1",
+     "rawDevice": "/dev/rdisk5s1",
+     "holders": [],
+     "swapActive": false,
+     "pagefile": false,
+     "isBootVolume": false,
+     "approx": false,
+     "content": "Windows_NTFS",
+     "end": 16008609792,
+     "locked": [],
+     "allow": []
+    }
+   ],
+   "approx": false,
+   "gaps": [],
+   "segments": [
+    {
+     "kind": "part",
+     "id": "part:disk5s1",
+     "start": 1048576,
+     "size": 16007561216
+    }
+   ],
+   "locked": []
+  }
+ ],
+ "approx": false
+}

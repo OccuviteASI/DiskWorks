@@ -1,0 +1,7 @@
+# DiskWorks is written with LF line endings on every platform (build-mac.sh must stay LF for the Mac).
+* text=auto eol=lf
+*.png binary
+*.ico binary
+*.icns binary
+*.zip binary
+*.img binary

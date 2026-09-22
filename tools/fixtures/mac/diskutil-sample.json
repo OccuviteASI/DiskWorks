@@ -1,0 +1,235 @@
+{
+ "list": {
+  "AllDisksAndPartitions": [
+   {
+    "DeviceIdentifier": "disk0",
+    "Content": "GUID_partition_scheme",
+    "Size": 1000555581440,
+    "Partitions": [
+     {
+      "DeviceIdentifier": "disk0s1",
+      "Content": "Apple_APFS_ISC",
+      "Size": 524288000
+     },
+     {
+      "DeviceIdentifier": "disk0s2",
+      "Content": "Apple_APFS",
+      "Size": 994662584320
+     },
+     {
+      "DeviceIdentifier": "disk0s3",
+      "Content": "Apple_APFS_Recovery",
+      "Size": 5368664064
+     }
+    ]
+   },
+   {
+    "DeviceIdentifier": "disk3",
+    "Size": 994662584320,
+    "APFSPhysicalStores": [
+     {
+      "APFSPhysicalStore": "disk0s2"
+     }
+    ],
+    "APFSVolumes": [
+     {
+      "DeviceIdentifier": "disk3s1",
+      "VolumeName": "Macintosh HD",
+      "MountPoint": "/",
+      "CapacityInUse": 11934617600,
+      "Roles": [
+       "System"
+      ]
+     },
+     {
+      "DeviceIdentifier": "disk3s2",
+      "VolumeName": "Preboot",
+      "MountPoint": "/System/Volumes/Preboot",
+      "CapacityInUse": 6442450944,
+      "Roles": [
+       "Preboot"
+      ],
+      "OSInternal": true
+     },
+     {
+      "DeviceIdentifier": "disk3s3",
+      "VolumeName": "Recovery",
+      "MountPoint": "",
+      "CapacityInUse": 1073741824,
+      "Roles": [
+       "Recovery"
+      ],
+      "OSInternal": true
+     },
+     {
+      "DeviceIdentifier": "disk3s5",
+      "VolumeName": "Macintosh HD - Data",
+      "MountPoint": "/System/Volumes/Data",
+      "CapacityInUse": 322122547200,
+      "Roles": [
+       "Data"
+      ]
+     },
+     {
+      "DeviceIdentifier": "disk3s6",
+      "VolumeName": "VM",
+      "MountPoint": "/System/Volumes/VM",
+      "CapacityInUse": 20480,
+      "Roles": [
+       "VM"
+      ],
+      "OSInternal": true
+     }
+    ]
+   },
+   {
+    "DeviceIdentifier": "disk4",
+    "Content": "GUID_partition_scheme",
+    "Size": 123042004992,
+    "Partitions": [
+     {
+      "DeviceIdentifier": "disk4s1",
+      "Content": "EFI",
+      "Size": 209715200,
+      "VolumeName": "EFI"
+     },
+     {
+      "DeviceIdentifier": "disk4s2",
+      "Content": "Microsoft Basic Data",
+      "Size": 64424509440,
+      "VolumeName": "WINDATA"
+     },
+     {
+      "DeviceIdentifier": "disk4s3",
+      "Content": "Apple_HFS",
+      "Size": 32212254720,
+      "VolumeName": "MacStuff"
+     }
+    ]
+   },
+   {
+    "DeviceIdentifier": "disk5",
+    "Content": "FDisk_partition_scheme",
+    "Size": 16008609792,
+    "Partitions": [
+     {
+      "DeviceIdentifier": "disk5s1",
+      "Content": "Windows_NTFS",
+      "Size": 16007561216,
+      "VolumeName": "NTFSSTICK"
+     }
+    ]
+   }
+  ]
+ },
+ "info": {
+  "disk0": {
+   "Internal": true,
+   "BusProtocol": "Apple Fabric",
+   "SolidState": true,
+   "DeviceBlockSize": 4096,
+   "Size": 1000555581440,
+   "MediaName": "APPLE SSD AP1024Z Media",
+   "VirtualOrPhysical": "Physical",
+   "DiskUUID": "1A2B3C4D-0000-4000-8000-000000000001",
+   "WritableMedia": true
+  },
+  "disk0s1": {
+   "Content": "Apple_APFS_ISC",
+   "Size": 524288000,
+   "OSInternal": true
+  },
+  "disk0s2": {
+   "Content": "Apple_APFS",
+   "Size": 994662584320,
+   "APFSContainerReference": "disk3"
+  },
+  "disk0s3": {
+   "Content": "Apple_APFS_Recovery",
+   "Size": 5368664064,
+   "OSInternal": true
+  },
+  "disk4": {
+   "Internal": false,
+   "RemovableMediaOrExternalDevice": true,
+   "Ejectable": true,
+   "BusProtocol": "USB",
+   "SolidState": true,
+   "DeviceBlockSize": 512,
+   "Size": 123042004992,
+   "MediaName": "SanDisk Ultra USB 3.0 Media",
+   "VirtualOrPhysical": "Physical",
+   "DiskUUID": "1A2B3C4D-0000-4000-8000-000000000004",
+   "WritableMedia": true
+  },
+  "disk4s1": {
+   "Content": "EFI",
+   "FilesystemType": "msdos",
+   "FilesystemName": "MS-DOS FAT32",
+   "VolumeName": "EFI",
+   "Size": 209715200
+  },
+  "disk4s2": {
+   "Content": "Microsoft Basic Data",
+   "FilesystemType": "ntfs",
+   "FilesystemName": "NTFS",
+   "VolumeName": "WINDATA",
+   "MountPoint": "/Volumes/WINDATA",
+   "Writable": false,
+   "Size": 64424509440,
+   "VolumeSize": 64424509440,
+   "FreeSpace": 60000000000,
+   "VolumeUUID": "9B8A7C6D-1111-4222-8333-444455556666"
+  },
+  "disk4s3": {
+   "Content": "Apple_HFS",
+   "FilesystemType": "hfs",
+   "FilesystemName": "Mac OS Extended (Journaled)",
+   "VolumeName": "MacStuff",
+   "MountPoint": "/Volumes/MacStuff",
+   "Writable": true,
+   "Size": 32212254720,
+   "VolumeSize": 32212254720,
+   "FreeSpace": 30000000000
+  },
+  "disk5": {
+   "Internal": false,
+   "RemovableMediaOrExternalDevice": true,
+   "Ejectable": true,
+   "BusProtocol": "USB",
+   "SolidState": true,
+   "DeviceBlockSize": 512,
+   "Size": 16008609792,
+   "MediaName": "Kingston DataTraveler 3.0 Media",
+   "VirtualOrPhysical": "Physical",
+   "WritableMedia": true
+  },
+  "disk5s1": {
+   "Content": "Windows_NTFS",
+   "FilesystemType": "ntfs",
+   "FilesystemName": "NTFS",
+   "VolumeName": "NTFSSTICK",
+   "MountPoint": "/Volumes/NTFSSTICK",
+   "Writable": false,
+   "Size": 16007561216,
+   "VolumeSize": 16007561216,
+   "FreeSpace": 15000000000
+  }
+ },
+ "root": {
+  "DeviceIdentifier": "disk3s1",
+  "MountPoint": "/",
+  "APFSPhysicalStores": [
+   {
+    "APFSPhysicalStore": "disk0s2"
+   }
+  ],
+  "ParentWholeDisk": "disk3"
+ },
+ "gpt": {
+  "disk4": "       start        size  index  contents\n           0           1         PMBR\n           1           1         Pri GPT header\n           2          32         Pri GPT table\n          34           6\n          40      409600      1  GPT part - C12A7328-F81F-11D2-BA4B-00A0C93EC93B\n      409640   125829120      2  GPT part - EBD0A0A2-B9E5-4433-87C0-68B6B72699C7\n   126238760    62914560      3  GPT part - 48465300-0000-11AA-AA11-00306543ECAC\n   189153320    51163063\n   240316383          32         Sec GPT table\n   240316415           1         Sec GPT header\n"
+ },
+ "fdisk": {
+  "disk5": "2048,31264768,0x07,-,0,32,33,1023,254,63\n0,0,0x00,-,0,0,0,0,0,0\n0,0,0x00,-,0,0,0,0,0,0\n0,0,0x00,-,0,0,0,0,0,0\n"
+ }
+}

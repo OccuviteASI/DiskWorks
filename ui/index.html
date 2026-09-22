@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DiskWorks</title>
+<link rel="stylesheet" href="/ui/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b6ef5'/%3E%3Crect x='6' y='9' width='20' height='14' rx='3' fill='none' stroke='white' stroke-width='2.5'/%3E%3Crect x='6' y='9' width='7' height='14' rx='3' fill='white'/%3E%3Ccircle cx='21' cy='16' r='2' fill='white'/%3E%3C/svg%3E">
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">
+    <svg viewBox="0 0 32 32" width="34" height="34" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#0b6ef5"/><rect x="6" y="9" width="20" height="14" rx="3" fill="none" stroke="white" stroke-width="2.5"/><rect x="6" y="9" width="7" height="14" rx="3" fill="white"/><circle cx="21" cy="16" r="2" fill="white"/></svg>
+    <div>
+      <h1>DiskWorks</h1>
+      <p>Disks, partitions and images without the command line</p>
+    </div>
+  </div>
+  <div class="top-right">
+    <button id="helperPill" class="pill pill-muted" title="Changing disks needs administrator rights">Checking…</button>
+    <button id="verPill" class="pill pill-muted" title="What's new in this version">v…</button>
+    <button id="btnAbout" class="icon-btn" title="About DiskWorks">?</button>
+  </div>
+</header>
+
+<main>
+
+<nav class="tabs" id="tabs" aria-label="Tools">
+  <button data-tab="disks" class="on">Disks</button>
+  <button data-tab="image">Image</button>
+  <button data-tab="access">Access</button>
+  <button data-tab="speed">Speed</button>
+  <button data-tab="space">Space</button>
+  <button data-tab="log">Log</button>
+</nav>
+
+<!-- ================================================================== Disks -->
+<section id="tab-disks" class="tab">
+  <div class="toolbar">
+    <button id="btnRefresh" class="btn">Refresh</button>
+    <span id="invInfo" class="hint"></span>
+    <span class="grow"></span>
+    <label class="chk" title="The disk that runs this computer is hidden unless you tick this"><input type="checkbox" id="chkSystem"> Show system disks</label>
+    <span id="sysHint" class="hint"></span>
+    <label class="chk"><input type="checkbox" id="chkExact"> Exact sizes</label>
+  </div>
+  <div id="invError" class="error hidden"></div>
+
+  <section class="card" id="volCard">
+    <h2>Volumes</h2>
+    <div class="tablewrap">
+      <table class="grid" id="volTable">
+        <thead><tr><th>Volume</th><th>Disk</th><th>Type</th><th>File system</th><th>Status</th><th class="num">Capacity</th><th class="num">Free</th><th class="num">% free</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card" id="disksCard">
+    <div class="row"><h2 class="grow">Disks</h2><span class="hint">Right-click a partition, free space or a disk for its options</span></div>
+    <div id="diskList" class="disklist"></div>
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <div class="layout">
+    <section class="card" id="detailCard">
+      <h2 id="detailTitle">Select a disk, a partition or unallocated space — or right-click one</h2>
+      <div id="detailActions" class="actions hidden"><span class="lbl">Actions</span><div id="detailOps" class="ops"></div></div>
+      <div id="detailBody" class="facts"></div>
+    </section>
+    <section class="card" id="pendingCard">
+      <h2>Pending operations <span id="pendingCount" class="soft"></span></h2>
+      <p class="hint" id="pendingHint">Nothing is changed on the disk until you press Apply. Queue as many changes as you like; the bars above preview the result.</p>
+      <ol id="pendingList" class="pending"></ol>
+      <div class="row wrap">
+        <button id="btnApply" class="btn primary" disabled>Apply</button>
+        <button id="btnClearOps" class="btn" disabled>Clear all</button>
+        <button id="btnPreviewCmds" class="btn" disabled>Show commands</button>
+      </div>
+      <div id="applyPanel" class="hidden">
+        <div class="progress"><div class="bar" id="applyBar"></div><span class="msg" id="applyMsg"></span></div>
+        <ol id="applySteps" class="steps"></ol>
+        <div class="row"><button id="btnApplyCancel" class="btn">Cancel</button><button id="btnApplyClose" class="btn hidden">Close</button></div>
+      </div>
+    </section>
+  </div>
+</section>
+
+<!-- ================================================================== Image -->
+<section id="tab-image" class="tab hidden">
+  <div class="modes" id="imgModes">
+    <label class="mode-card"><input type="radio" name="imgmode" value="write" checked>
+      <div class="mode-body"><div class="mode-icon">⇩</div><div><b>Write an image to a drive</b><span>ISO, IMG, VHD, compressed images → USB stick or disk (like Rufus)</span></div></div></label>
+    <label class="mode-card"><input type="radio" name="imgmode" value="backup">
+      <div class="mode-body"><div class="mode-icon">⇧</div><div><b>Back up a drive to a file</b><span>Whole disk or one partition → compressed image + manifest</span></div></div></label>
+    <label class="mode-card"><input type="radio" name="imgmode" value="restore">
+      <div class="mode-body"><div class="mode-icon">↺</div><div><b>Restore a backup</b><span>A DiskWorks backup or any raw image → back onto a drive</span></div></div></label>
+  </div>
+  <section class="card" id="imgCard"><div id="imgBody"><p class="hint">Imaging is being wired up in this build.</p></div></section>
+</section>
+
+<!-- ================================================================== Access -->
+<section id="tab-access" class="tab hidden">
+  <section class="card">
+    <h2>Make a partition readable and writable from this computer</h2>
+    <p class="hint">Pick a partition. DiskWorks works through the ways of opening it — built-in support, an installed driver, WSL, a driver it can install for you, or its own read-only view — and tells you which one worked and why the others did not.</p>
+    <div class="row wrap">
+      <select id="accSel"></select>
+      <button id="btnAccEval" class="btn">Check options</button>
+    </div>
+    <div id="accBody"></div>
+  </section>
+  <section class="card hidden" id="accBrowser">
+    <div class="row"><h2 class="grow">Files <span class="soft" id="brSource"></span></h2><button class="btn small" id="brClose">Close</button></div>
+    <p class="hint">Read-only view through the bundled 7-Zip engine. Tick files or folders and copy them to a folder on this computer.</p>
+    <div class="row wrap browser-bar">
+      <div class="crumbs" id="brCrumb"></div>
+      <span class="grow"></span>
+      <button class="btn small" id="brUp">Up</button>
+      <button class="btn small primary" id="brCopy" disabled>Copy out…</button>
+    </div>
+    <div class="tablewrap browser-list"><table class="grid" id="brList">
+      <thead><tr><th class="chkcol"><input type="checkbox" id="brAll" title="Select all"></th><th>Name</th><th class="num">Size</th><th>Modified</th></tr></thead>
+      <tbody></tbody></table></div>
+    <div id="brProgress" class="progress hidden"><div class="bar" id="brBar"></div><span class="msg" id="brMsg"></span></div>
+  </section>
+</section>
+
+<!-- ================================================================== Speed -->
+<section id="tab-speed" class="tab hidden">
+  <section class="card">
+    <h2>Disk speed test</h2>
+    <p class="hint">Writes a temporary file to the drive and reads it back with the operating-system cache switched off, then repeats until you stop it — the way Blackmagic Disk Speed Test does. Nothing on the drive is changed; the test file is removed afterwards.</p>
+    <div class="row wrap">
+      <select id="spTarget"></select>
+      <label class="fld">Test size <select id="spSize"><option value="100">100 MB</option><option value="500">500 MB</option><option value="1000" selected>1 GB</option><option value="5000">5 GB</option></select></label>
+      <label class="fld">Block <select id="spBlock"><option value="65536">64 KiB</option><option value="262144">256 KiB</option><option value="1048576" selected>1 MiB</option><option value="4194304">4 MiB</option><option value="8388608">8 MiB</option></select></label>
+      <label class="chk"><input type="checkbox" id="spLoop" checked> Repeat until stopped</label>
+      <span class="grow"></span>
+      <button id="spStart" class="btn primary">Start</button>
+      <button id="spStop" class="btn" disabled>Stop</button>
+    </div>
+    <div id="spError" class="error hidden"></div>
+    <div class="gauges">
+      <div class="gauge" id="gWrite"><div class="glbl">WRITE</div><svg viewBox="0 0 200 120"></svg><div class="gval"><b>—</b><span>MB/s</span></div><div class="gsub"></div></div>
+      <div class="gauge" id="gRead"><div class="glbl">READ</div><svg viewBox="0 0 200 120"></svg><div class="gval"><b>—</b><span>MB/s</span></div><div class="gsub"></div></div>
+    </div>
+    <div class="row" style="margin-top:6px"><span id="spStatus" class="hint"></span></div>
+  </section>
+  <div class="layout">
+    <section class="card">
+      <h2>Will it work? <span class="soft">(sustained, one stream)</span></h2>
+      <div class="tablewrap"><table class="grid" id="spWill"><thead><tr><th>Format</th><th class="num">Needs</th><th>Write</th><th>Read</th></tr></thead><tbody></tbody></table></div>
+    </section>
+    <section class="card">
+      <h2>Runs <span class="soft" id="spRunCount"></span></h2>
+      <div class="tablewrap"><table class="grid" id="spRuns"><thead><tr><th>#</th><th class="num">Write MB/s</th><th class="num">Read MB/s</th><th>When</th></tr></thead><tbody></tbody></table></div>
+    </section>
+  </div>
+</section>
+
+<!-- ================================================================== Space -->
+<section id="tab-space" class="tab hidden">
+  <section class="card">
+    <h2>What is using the space</h2>
+    <p class="hint">Scans a drive or folder and draws it as rings — the bigger the slice, the more space it takes. Click a slice or a row to look inside. Tick things to move them to the Recycle Bin / Trash or delete them for good.</p>
+    <div class="row wrap">
+      <select id="spcTarget"></select>
+      <button id="spcScan" class="btn primary">Scan</button>
+      <button id="spcStop" class="btn" disabled>Stop</button>
+      <span class="grow"></span>
+      <span id="spcStatus" class="hint"></span>
+    </div>
+    <div id="spcError" class="error hidden"></div>
+  </section>
+  <section class="card hidden" id="spcResult">
+    <div class="row wrap"><div class="crumbs" id="spcCrumb"></div><span class="grow"></span>
+      <button class="btn small" id="spcUp">Up</button>
+      <button class="btn small" id="spcReveal" disabled>Show in file manager</button>
+      <button class="btn small" id="spcTrash" disabled>Move to Trash</button>
+      <button class="btn small danger" id="spcDelete" disabled>Delete permanently</button></div>
+    <div class="space-layout">
+      <div class="sunwrap"><svg id="sunburst" viewBox="-160 -160 320 320"></svg><div class="suncenter" id="sunCenter"></div></div>
+      <div class="tablewrap space-list"><table class="grid" id="spcList">
+        <thead><tr><th class="chkcol"><input type="checkbox" id="spcAll" title="Select all"></th><th>Name</th><th class="num">Size</th><th class="num">Share</th><th class="num">Items</th></tr></thead>
+        <tbody></tbody></table></div>
+    </div>
+  </section>
+</section>
+
+<!-- ================================================================== Log -->
+<section id="tab-log" class="tab hidden">
+  <section class="card">
+    <div class="row">
+      <h2 class="grow">Everything DiskWorks ran this session</h2>
+      <button id="btnLogExport" class="btn">Save log…</button>
+    </div>
+    <div id="logList" class="log"></div>
+  </section>
+</section>
+
+</main>
+
+<!-- ================================================================== Dialogs -->
+<dialog id="dlgNotes" class="dlg">
+  <div class="dlg-head"><h3>What's new</h3><button class="icon-btn" data-close>✕</button></div>
+  <div class="dlg-body" id="notesBody"></div>
+</dialog>
+
+<dialog id="dlgAbout" class="dlg">
+  <div class="dlg-head"><h3>About DiskWorks</h3><button class="icon-btn" data-close>✕</button></div>
+  <div class="dlg-body about">
+    <p><b>DiskWorks</b> shows the disks in this computer the way Windows Disk Management does and lets you change them with the detailed options of GParted — on Windows, Linux and macOS, from one window.</p>
+    <h4>Disks</h4><p>Every disk is a bar, every partition a segment, unallocated space is hatched. Select something to see its details. Queue changes (create, delete, format, resize, label, drive letter, table type) and press <b>Apply</b>; nothing touches the disk before that. The exact commands are always one click away.</p>
+    <h4>Image</h4><p>Write an ISO or image file to a USB stick (Rufus-style), back up a disk or a partition to a compressed image, restore it later, and verify what was written.</p>
+    <h4>Access</h4><p>When this computer cannot open a partition by itself (for example ext4 on Windows), DiskWorks works through the ways to make it readable and writable and tells you which one it used.</p>
+    <h4>Speed</h4><p>Measures how fast a drive really writes and reads, with the cache switched off, and tells you which video formats it can sustain.</p>
+    <h4>Space</h4><p>Shows what fills a drive as rings you can click into, and lets you move files to the Recycle Bin / Trash or delete them.</p>
+    <h4>Log</h4><p>Every command the app ran, with its output.</p>
+    <h4>Administrator rights</h4><p>Looking never needs them. The first change asks once (Windows UAC / Linux password / macOS administrator prompt) and starts a small helper process that does the privileged work for the rest of the session. The window itself never runs as administrator.</p>
+    <p class="hint">Version <span id="aboutVer"></span>. Everything is bundled; nothing is downloaded at run time.</p>
+  </div>
+</dialog>
+
+<dialog id="dlgOp" class="dlg">
+  <div class="dlg-head"><h3 id="opTitle">Operation</h3><button class="icon-btn" data-close>✕</button></div>
+  <div class="dlg-body" id="opBody"></div>
+  <div class="dlg-foot"><span id="opError" class="error hidden"></span><span class="grow"></span><button class="btn" data-close>Cancel</button><button id="opOk" class="btn primary">Add to pending</button></div>
+</dialog>
+
+<dialog id="dlgConfirm" class="dlg">
+  <div class="dlg-head"><h3 id="cfTitle">Are you sure?</h3><button class="icon-btn" data-close>✕</button></div>
+  <div class="dlg-body" id="cfBody"></div>
+  <div class="dlg-foot"><span class="grow"></span><button class="btn" data-close>Cancel</button><button id="cfOk" class="btn danger" disabled>Continue</button></div>
+</dialog>
+
+<dialog id="dlgText" class="dlg wide">
+  <div class="dlg-head"><h3 id="txTitle">Commands</h3><button class="icon-btn" data-close>✕</button></div>
+  <div class="dlg-body"><pre id="txBody"></pre></div>
+  <div class="dlg-foot"><span class="grow"></span><button id="txCopy" class="btn">Copy</button><button class="btn" data-close>Close</button></div>
+</dialog>
+
+<div id="ctxMenu" class="ctx hidden" role="menu"></div>
+<div id="dragLabel" class="draglabel hidden"></div>
+<div id="toast" class="toast hidden"></div>
+
+<script src="/ui/app.js"></script>
+<script src="/ui/disks.js"></script>
+<script src="/ui/ops.js"></script>
+<script src="/ui/image.js"></script>
+<script src="/ui/access.js"></script>
+<script src="/ui/speed.js"></script>
+<script src="/ui/space.js"></script>
+</body>
+</html>
