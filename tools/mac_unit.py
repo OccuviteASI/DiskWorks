@@ -106,8 +106,7 @@ def build_fixture() -> dict:
 def main() -> int:
     os.makedirs(FIX, exist_ok=True)
     fx = build_fixture()
-    with open(os.path.join(FIX, "diskutil-sample.json"), "w", encoding="utf-8", newline="
-") as f:
+    with open(os.path.join(FIX, "diskutil-sample.json"), "w", encoding="utf-8", newline="\n") as f:
         json.dump({k: fx[k] for k in ("list", "info", "root", "gpt", "fdisk")}, f, indent=1)
 
     print("inventory from recorded plists")
@@ -149,8 +148,7 @@ def main() -> int:
     inv["hash"] = di.layout_hash(inv["disks"])
     inv["approx"] = False
     inv["platform"] = "darwin"
-    with open(os.path.join(FIX, "sample-inventory.json"), "w", encoding="utf-8", newline="
-") as f:
+    with open(os.path.join(FIX, "sample-inventory.json"), "w", encoding="utf-8", newline="\n") as f:
         json.dump(inv, f, indent=1)
     print("  wrote tools/fixtures/mac/sample-inventory.json")
 
