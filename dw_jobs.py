@@ -45,6 +45,13 @@ class Jobs:
             self.space = dw_space.SpaceScan(app)
         except ImportError:
             pass
+        # drive health: window-side cache + routes; the reads run in the helper
+        self.smart = None
+        try:
+            import dw_smart
+            self.smart = dw_smart.Smart(self)
+        except ImportError:
+            pass
 
     # -- lifecycle ------------------------------------------------------------
     def running(self) -> bool:
@@ -80,6 +87,8 @@ class Jobs:
             return True
         if self.space and self.space.handle_get(h, path, q):
             return True
+        if self.smart and self.smart.handle_get(h, path, q):
+            return True
         return False
 
     def handle_post(self, h, path: str, body: dict) -> bool:
@@ -111,6 +120,8 @@ class Jobs:
         if self.speed and self.speed.handle_post(h, path, body):
             return True
         if self.space and self.space.handle_post(h, path, body):
+            return True
+        if self.smart and self.smart.handle_post(h, path, body):
             return True
         return False
 

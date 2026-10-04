@@ -27,7 +27,7 @@ import dw_fs
 import dw_inventory as di
 
 APP_NAME = "DiskWorks"
-VERSION = "0.2.2"
+VERSION = "0.3.0"
 IS_WIN = os.name == "nt"
 IS_LINUX = sys.platform.startswith("linux")
 IS_MAC = sys.platform == "darwin"
@@ -492,7 +492,8 @@ def status_payload(app: App) -> dict:
         "isAdmin": is_admin(), "fixture": app.fixture, "helper": helper,
         "inventoryError": app.inv_error, "stateDir": app.sd, "frozen": bool(getattr(sys, "frozen", False)),
         "bundle": bundle_info(),
-        "features": {"ops": bool(app.jobs), "image": bool(app.jobs), "access": bool(app.jobs), "speed": bool(app.jobs and app.jobs.speed), "space": bool(app.jobs and app.jobs.space)},
+        "features": {"ops": bool(app.jobs), "image": bool(app.jobs), "access": bool(app.jobs), "speed": bool(app.jobs and app.jobs.speed), "space": bool(app.jobs and app.jobs.space),
+                     "smart": bool(app.jobs and app.jobs.smart)},
     }
 
 

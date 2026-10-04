@@ -76,7 +76,7 @@ def check_python_deps() -> None:
 
 
 def check_binaries() -> list[str]:
-    """Bundled tools for this platform (Linux: bin/linux-x86_64/tools/*). Windows needs none."""
+    """Bundled tools for this platform (Linux: bin/linux-x86_64/tools/*; Windows: 7-Zip and, when fetched, smartctl)."""
     fh_path = os.path.join(HERE, "fetch-helpers.py")
     spec = {"__file__": fh_path, "__name__": "fetch_helpers"}   # the module name has a dash, so exec it
     with open(fh_path, encoding="utf-8") as f:
@@ -92,7 +92,7 @@ def check_binaries() -> list[str]:
             os.chmod(t, 0o755)
         return tools
     if WINDOWS:
-        return sorted(glob.glob(os.path.join(HERE, "bin", TAG, "7zip", "7z.*")))
+        return sorted(glob.glob(os.path.join(HERE, "bin", TAG, "7zip", "7z.*")) + glob.glob(os.path.join(HERE, "bin", TAG, "smartmontools", "smartctl.exe")))
     return []
 
 
@@ -105,12 +105,14 @@ def pyinstaller_cmd(console: bool, onedir: bool, binaries: list[str]) -> list[st
            "--add-data", os.path.join(HERE, "CHANGELOG.md") + SEP + ".",
            "--hidden-import", "dw_jobs", "--hidden-import", "dw_ops_exec", "--hidden-import", "dw_image",
            "--hidden-import", "dw_access", "--hidden-import", "dw_helper", "--hidden-import", "dw_ipc",
+           "--hidden-import", "dw_speed", "--hidden-import", "dw_space", "--hidden-import", "dw_smart",
            "--hidden-import", "dw_win" if WINDOWS else "dw_linux",
            "--exclude-module", "tkinter", "--exclude-module", "unittest",
            "--exclude-module", "webview.platforms.cef", "--exclude-module", "webview.platforms.android",
            "--exclude-module", "webview.platforms.cocoa", "--exclude-module", "webview.platforms.mshtml"]
     for b in binaries:
-        sub = "7zip" if WINDOWS else "tools"
+        # keep each tool's folder under bin/<tag>/ (7zip/, smartmontools/, tools/)
+        sub = os.path.relpath(os.path.dirname(b), os.path.join(HERE, "bin", TAG))
         cmd += ["--add-binary", b + SEP + os.path.join("bin", TAG, sub)]
     lic7 = os.path.join(HERE, "bin", "win64", "7zip", "License.txt")
     if WINDOWS and os.path.isfile(lic7):
@@ -172,6 +174,11 @@ def write_licenses(dist: str) -> None:
     if WINDOWS and os.path.isfile(lic7):
         parts.append("\n===== 7-Zip (read-only browser) =====\n")
         with open(lic7, encoding="utf-8", errors="replace") as fh:
+            parts.append(fh.read())
+    lics = os.path.join(HERE, "bin", "win64", "smartmontools", "COPYING.txt")
+    if WINDOWS and os.path.isfile(lics):
+        parts.append("\n===== smartmontools (drive health, GPL-2.0-or-later) =====\n")
+        with open(lics, encoding="utf-8", errors="replace") as fh:
             parts.append(fh.read())
     parts.append("\n===== Python packages =====\npywebview (BSD-3), pythonnet (MIT, Windows), PySide6/Qt (LGPL-3, Linux), "
                  "PyObjC (MIT, macOS), pycdlib (LGPL-2.1), pyfatfs (MIT), PyInstaller bootloader (GPL with exception).\n")

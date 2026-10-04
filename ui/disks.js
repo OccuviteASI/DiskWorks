@@ -19,7 +19,9 @@ const LINKS = {
   access: { label: () => (isWin() ? 'Open in Windows…' : 'Open in Linux…'), kinds: ['part'] },
   backup: { label: () => 'Back up…', kinds: ['part', 'disk'] },
   write:  { label: () => 'Write an image to this disk…', kinds: ['disk'] },
+  health: { label: () => 'Drive health (S.M.A.R.T.)…', kinds: ['disk'] },
 };
+S.smart = {};   // disk id -> last health summary (for the chips on the disk bars)
 
 /* ------------------------------------------------------------------------ */
 /* Lookups                                                                   */
@@ -97,7 +99,8 @@ function opsFor(sel) {
     if (!l.kinds.includes(sel.kind)) continue;
     let why = '';
     if (id === 'access' && !S.status?.features?.access) why = 'Not available in this build.';
-    if (id !== 'access' && !S.status?.features?.image) why = 'Not available in this build.';
+    if (id === 'health' && !S.status?.features?.smart) why = 'Not available in this build.';
+    if (id !== 'access' && id !== 'health' && !S.status?.features?.image) why = 'Not available in this build.';
     if (sel.kind === 'part' && obj.new) why = 'This partition does not exist yet; apply the queue first.';
     if (id === 'write' && isSystemDisk(disk)) why = 'Never onto the disk that runs this computer.';
     if (S.inv?.fixture) why = 'This is a saved inventory, not a real disk.';
@@ -115,6 +118,7 @@ function runAction(id, sel) {
     return;
   }
   if (id === 'write') { window.openImageFor && window.openImageFor('write', sel.id, null); }
+  if (id === 'health') openHealth(sel.id);
 }
 
 /* ------------------------------------------------------------------------ */
@@ -164,7 +168,7 @@ function render() {
     wrap.innerHTML = `<div class="dhead ${S.sel?.id === d.id ? 'sel' : ''}" data-kind="disk" data-id="${esc(d.id)}" title="Right-click for disk options">
         <b>${esc(d.name)}</b><span class="hint">${esc(kind)} · ${esc(d.table.toUpperCase())}</span>
         <span class="hint">${fmtBytes(d.size)}</span><span class="hint">${esc(status)}${isSystemDisk(d) ? ' · <span class="lockmark">System</span>' : ''}</span>
-        <span class="hint">${esc(d.model || '')}</span></div><div class="dbar"></div>`;
+        <span class="hint">${esc(d.model || '')}</span>${healthChip(d)}</div><div class="dbar"></div>`;
     const bar = $('.dbar', wrap);
     const segs = d.segments || [];
     const w = widths(segs.map(s => s.size));
@@ -229,6 +233,7 @@ function renderDetail() {
       ['Removable', d.removable ? 'Yes' : 'No'], ['Hot-plug', d.hotplug ? 'Yes' : 'No'],
       ['Holds the running system', isSystemDisk(d) ? 'Yes' : 'No'], ['Status', esc(d.offline ? 'Offline' : (d.health || 'Online'))],
       ['Device path', `<code>${esc(d.path)}</code>`], ['Live system', d.live ? 'Yes (booted from removable media)' : undefined],
+      ['Drive health', S.smart[d.id] ? healthChip(d) + ` <span class="soft">${S.smart[d.id].temperature != null ? S.smart[d.id].temperature + ' °C · ' : ''}read ${fmtWhen(S.smart[d.id].ts)}</span>` : undefined],
     ]);
     if (d.locked?.length) body.innerHTML += `<div class="lockbox warn">Protected: ${esc(d.locked.join('; '))}. Disk-level changes are not offered.</div>`;
     renderOps(sel);
@@ -477,4 +482,152 @@ document.addEventListener('status', e => {
   const s = e.detail || {};
   const key = JSON.stringify([s.features, s.helper?.state, s.fixture]);
   if (key !== lastStatusKey) { lastStatusKey = key; render(); }
+});
+
+/* ------------------------------------------------------------------------ */
+/* Drive health (S.M.A.R.T.)                                                 */
+/* ------------------------------------------------------------------------ */
+const VERDICT_WORD = { good: 'Good', caution: 'Caution', bad: 'Bad', unknown: 'Unknown' };
+function healthChip(d) {
+  const h = S.smart[d.id]; if (!h) return '';
+  return `<span class="hchip ${esc(h.verdict)}" title="${esc((h.reasons || []).join(' ') || 'S.M.A.R.T. read ' + fmtWhen(h.ts))}">S.M.A.R.T. ${VERDICT_WORD[h.verdict] || h.verdict}</span>`;
+}
+function fmtHours(h) {
+  if (h == null) return '—';
+  const d = h / 24;
+  const span = d >= 365 ? `${(d / 365).toFixed(1)} years` : d >= 60 ? `${Math.round(d / 30)} months` : d >= 2 ? `${Math.round(d)} days` : `${h} h`;
+  return `${span}<small>${Number(h).toLocaleString()} h</small>`;
+}
+const HL = { disk: null, rep: null, timer: null };
+async function openHealth(diskId) {
+  const d = findDisk(diskId); if (!d) return;
+  HL.disk = diskId; HL.rep = null; clearTimeout(HL.timer);
+  $('#hlTitle').textContent = `Drive health — ${d.name} · ${d.model || 'disk'}`;
+  $('#hlBody').innerHTML = '<p class="hint">Reading S.M.A.R.T. data…</p>';
+  $('#hlNote').textContent = ''; $('#hlSelfTest').classList.add('hidden'); $('#hlRefresh').disabled = true;
+  openDlg('#dlgHealth');
+  await loadHealth(false);
+}
+async function loadHealth(refresh) {
+  const diskId = HL.disk;
+  const r = await api(`/api/smart?disk=${encodeURIComponent(diskId)}${refresh ? '&refresh=1' : ''}`);
+  if (HL.disk !== diskId) return;
+  $('#hlRefresh').disabled = false;
+  if (r.error) { $('#hlBody').innerHTML = `<div class="error">${esc(r.error)}</div>`; return; }
+  if (r.locked) {
+    $('#hlBody').innerHTML = `<div class="lockbox warn">${lockIcon('closed')} ${esc(r.message)}</div><p class="hint">Reading health data talks to the drive directly, which the operating system only allows an administrator to do. Nothing is changed on the disk.</p><button class="btn primary" id="hlUnlock">Unlock and read</button>`;
+    $('#hlUnlock').addEventListener('click', async () => {
+      $('#hlUnlock').disabled = true; paintHelper({ state: 'starting' });
+      const u = await api('/api/helper/start', {});
+      await refreshStatus();
+      if (u.error) { toast(u.error, 5000); $('#hlUnlock').disabled = false; return; }
+      $('#hlBody').innerHTML = '<p class="hint">Reading S.M.A.R.T. data…</p>';
+      loadHealth(true);
+    });
+    return;
+  }
+  HL.rep = r;
+  S.smart[diskId] = { verdict: r.verdict, temperature: r.temperature, powerOnHours: r.powerOnHours, ts: r.ts, reasons: r.reasons || [] };
+  render();
+  renderHealth(r);
+}
+function renderHealth(r) {
+  const d = findDisk(r.disk) || {};
+  const tiles = [];
+  const tile = (k, v, s, cls) => tiles.push(`<div class="htile ${cls || ''}"><div class="k">${esc(k)}</div><div class="v">${v}</div>${s ? `<div class="s">${s}</div>` : ''}</div>`);
+  if (r.temperature != null) tile('Temperature', `${Math.round(r.temperature)}<small>°C</small>`, r.tempMax ? `max ${r.tempMax} °C` : '', r.temperature >= 60 ? 'warn' : '');
+  if (r.powerOnHours != null) tile('Powered on', fmtHours(r.powerOnHours));
+  if (r.powerCycles != null) tile('Power cycles', Number(r.powerCycles).toLocaleString());
+  if (r.hostWritten != null) tile('Total written', fmtBytes(r.hostWritten), r.hostRead != null ? `read ${fmtBytes(r.hostRead)}` : '');
+  if (r.lifeUsed != null) tile('Life used', `${r.lifeUsed}<small>%</small>`, r.nvme ? 'of the rated endurance' : 'per the drive\'s wear indicator', r.lifeUsed >= 90 ? 'warn' : '');
+  const attr = id => (r.attributes || []).find(a => a.id === id);
+  const re = attr(5), pend = attr(197), unc = attr(198);
+  if (re || pend || unc) tile('Bad sectors', `${re ? Number(re.raw).toLocaleString() : '—'}<small>reallocated</small>`, `${pend ? Number(pend.raw).toLocaleString() : '—'} pending · ${unc ? Number(unc.raw).toLocaleString() : '—'} uncorrectable`, (re?.raw || pend?.raw || unc?.raw) ? 'warn' : '');
+  if (r.nvme) tile('Spare capacity', `${r.nvme.availableSpare ?? '—'}<small>%</small>`, `threshold ${r.nvme.spareThreshold ?? '—'} % · ${Number(r.nvme.mediaErrors || 0).toLocaleString()} media errors`, r.nvme.availableSpare != null && r.nvme.spareThreshold != null && r.nvme.availableSpare < r.nvme.spareThreshold ? 'bad' : '');
+
+  const facts = kv([
+    ['Model', esc(r.model) + (r.family ? ` <span class="soft">${esc(r.family)}</span>` : '')], ['Serial number', esc(r.serial), 'mono'], ['Firmware', esc(r.firmware)],
+    ['Capacity', r.capacity ? `${fmtBytes(r.capacity)} <span class="soft">(${fmtDec(r.capacity)})</span>` : undefined],
+    ['Type', r.kind ? { ata: 'ATA / SATA', nvme: 'NVMe', scsi: 'SCSI / SAS' }[r.kind] || r.kind : undefined],
+    ['Media', r.rotation === 0 ? 'Solid state' : r.rotation ? `Rotating · ${Number(r.rotation).toLocaleString()} rpm` : (d.media || undefined)],
+    ['Form factor', esc(r.formFactor)], ['Interface', esc(r.interface)],
+    ['S.M.A.R.T.', r.smartSupported == null ? undefined : r.smartSupported ? (r.smartEnabled === false ? 'Supported but disabled' : 'Supported and enabled') : 'Not supported'],
+    ['Drive\'s own verdict', r.passed == null ? undefined : r.passed ? 'PASSED' : '<b>FAILED</b>'],
+    ['Read with', esc(r.source)], ['Read at', fmtWhen(r.ts)],
+  ]);
+
+  let attrs = '';
+  if (r.attributes?.length) {
+    attrs = `<div class="hsec"><h4>Attributes <span class="soft">(current / worst are 1–253 scores; the raw value is the drive's own count)</span></h4><div class="tablewrap"><table class="grid">
+      <thead><tr><th class="num">ID</th><th>Attribute</th><th class="num">Current</th><th class="num">Worst</th><th class="num">Threshold</th><th class="num">Raw</th></tr></thead><tbody>` +
+      r.attributes.map(a => `<tr class="${a.flag === 'bad' ? 'attr-bad' : a.flag === 'warn' ? 'attr-warn' : ''}"><td class="num">${a.id}</td><td><span class="dot ${esc(a.flag || 'ok')}"></span>${esc((a.name || '').replace(/_/g, ' '))}${a.prefail ? ' <span class="soft" title="A pre-failure attribute: at or below its threshold means imminent failure">pre-fail</span>' : ''}</td>
+        <td class="num">${a.value ?? '—'}</td><td class="num">${a.worst ?? '—'}</td><td class="num">${a.thresh ?? '—'}</td><td class="num mono">${esc(a.rawString ?? a.raw ?? '—')}</td></tr>`).join('') + '</tbody></table></div></div>';
+  }
+  let nvme = '';
+  if (r.nvme) {
+    const n = r.nvme;
+    const rows = [['Critical warning', n.criticalWarning ? `0x${Number(n.criticalWarning).toString(16).padStart(2, '0')}` : 'none'], ['Available spare', n.availableSpare != null ? `${n.availableSpare} % (threshold ${n.spareThreshold} %)` : undefined],
+      ['Percentage used', n.percentageUsed != null ? `${n.percentageUsed} %` : undefined], ['Data read', n.dataRead != null ? fmtBytes(n.dataRead) : undefined], ['Data written', n.dataWritten != null ? fmtBytes(n.dataWritten) : undefined],
+      ['Host read commands', n.hostReads != null ? Number(n.hostReads).toLocaleString() : undefined], ['Host write commands', n.hostWrites != null ? Number(n.hostWrites).toLocaleString() : undefined],
+      ['Controller busy', n.controllerBusyMinutes != null ? `${Number(n.controllerBusyMinutes).toLocaleString()} min` : undefined], ['Unsafe shutdowns', n.unsafeShutdowns != null ? Number(n.unsafeShutdowns).toLocaleString() : undefined],
+      ['Media errors', n.mediaErrors != null ? Number(n.mediaErrors).toLocaleString() : undefined], ['Error log entries', n.errorLogEntries != null ? Number(n.errorLogEntries).toLocaleString() : undefined],
+      ['Time over warning temperature', n.warningTempMinutes != null ? `${n.warningTempMinutes} min` : undefined], ['Time over critical temperature', n.criticalTempMinutes != null ? `${n.criticalTempMinutes} min` : undefined]];
+    nvme = `<div class="hsec"><h4>NVMe health log</h4><div class="facts">${kv(rows.map(([k, v]) => [k, v == null ? undefined : esc(v)]))}</div></div>`;
+  }
+  let counters = '';
+  if (r.counters) {
+    const c = r.counters;
+    const rows = [['Windows health status', c.healthStatus], ['Operational status', c.operationalStatus], ['Predicts failure', c.predictFailure == null ? undefined : c.predictFailure ? 'Yes' : 'No'],
+      ['Read errors', c.readErrorsTotal != null ? `${Number(c.readErrorsTotal).toLocaleString()} total · ${Number(c.readErrorsCorrected || 0).toLocaleString()} corrected · ${Number(c.readErrorsUncorrected || 0).toLocaleString()} uncorrected` : undefined],
+      ['Write errors', c.writeErrorsTotal != null ? `${Number(c.writeErrorsTotal).toLocaleString()} total · ${Number(c.writeErrorsCorrected || 0).toLocaleString()} corrected · ${Number(c.writeErrorsUncorrected || 0).toLocaleString()} uncorrected` : undefined],
+      ['Wear', c.wear != null ? `${c.wear} %` : undefined], ['Load / unload cycles', c.loadUnloadCycles != null ? Number(c.loadUnloadCycles).toLocaleString() : undefined], ['Manufactured', c.manufactureDate || undefined]];
+    counters = `<div class="hsec"><h4>Windows storage counters</h4><div class="facts">${kv(rows.map(([k, v]) => [k, v == null ? undefined : esc(v)]))}</div></div>`;
+  }
+  let self = '';
+  if (r.selfTest) {
+    const s = r.selfTest;
+    self = `<div class="hsec"><h4>Self-tests</h4><p class="hint">${esc(s.status || 'No self-test information.')}${s.remaining ? ` · ${s.remaining} % remaining` : ''}${s.shortMinutes ? ` · a short test takes about ${s.shortMinutes} min, an extended one ${s.longMinutes || '?'} min` : ''}</p>` +
+      (s.log?.length ? `<div class="tablewrap"><table class="grid"><thead><tr><th>#</th><th>Test</th><th>Result</th><th class="num">At hours</th></tr></thead><tbody>` +
+        s.log.slice(0, 8).map((e, i) => `<tr><td>${i + 1}</td><td>${esc(e.type)}</td><td><span class="dot ${e.passed === false ? 'bad' : e.passed ? 'ok' : 'info'}"></span>${esc(e.status)}</td><td class="num">${e.hours ?? '—'}</td></tr>`).join('') + '</tbody></table></div>' : '') + '</div>';
+  }
+  const warn = r.warnings?.length ? `<div class="hwarn note">${r.warnings.map(w => esc(w)).join('<br>')}</div>` : '';
+  const verdict = `<div class="verdict ${esc(r.verdict)}"><b>${VERDICT_WORD[r.verdict] || r.verdict}</b>${r.reasons?.length ? `<ul>${r.reasons.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : `<p>${r.verdict === 'good' ? 'The drive reports no problems. Keep backups anyway — S.M.A.R.T. misses about a third of failures.' : r.verdict === 'unknown' ? 'Nothing could be read from this drive.' : ''}</p>`}</div>`;
+  $('#hlBody').innerHTML = verdict + (tiles.length ? `<div class="htiles">${tiles.join('')}</div>` : '') + `<div class="facts">${facts}</div>` + attrs + nvme + counters + self + warn;
+  const canTest = !!(r.smartctl && r.selfTest && r.selfTest.supported !== false && !r.selfTest.remaining);
+  $('#hlSelfTest').classList.toggle('hidden', !canTest);
+  $('#hlNote').textContent = r.selfTest?.remaining ? 'A self-test is running; this view refreshes itself.' : '';
+  if (r.selfTest?.remaining) { clearTimeout(HL.timer); HL.timer = setTimeout(() => { if (HL.disk === r.disk && $('#dlgHealth').open) loadHealth(true); }, 30000); }
+}
+$('#hlRefresh').addEventListener('click', () => { $('#hlRefresh').disabled = true; loadHealth(true); });
+$('#hlSelfTest').addEventListener('click', async () => {
+  const diskId = HL.disk; if (!diskId) return;
+  $('#hlSelfTest').disabled = true;
+  const r = await api('/api/smart/selftest', { disk: diskId, kind: 'short' });
+  $('#hlSelfTest').disabled = false;
+  if (r.error) { toast(r.error, 6000); return; }
+  toast(`Short self-test started${r.minutes ? ` — about ${r.minutes} min` : ''}. The drive keeps working normally meanwhile.`, 5000);
+  $('#hlNote').textContent = 'Self-test running…'; $('#hlSelfTest').classList.add('hidden');
+  clearTimeout(HL.timer); HL.timer = setTimeout(() => { if (HL.disk === diskId && $('#dlgHealth').open) loadHealth(true); }, Math.min(120, (r.minutes || 2) * 60) * 1000 / 2);
+});
+$('#hlCopy').addEventListener('click', () => {
+  const r = HL.rep; if (!r) return;
+  const L = [];
+  L.push(`DiskWorks drive health report — ${r.diskName || r.disk} — ${new Date((r.ts || 0) * 1000).toLocaleString()}`);
+  L.push(`Verdict: ${VERDICT_WORD[r.verdict] || r.verdict}${r.reasons?.length ? ' — ' + r.reasons.join(' ') : ''}`);
+  L.push(`Model: ${r.model || ''}  Serial: ${r.serial || ''}  Firmware: ${r.firmware || ''}  Capacity: ${r.capacity ? fmtBytes(r.capacity) : ''}`);
+  L.push(`Type: ${r.kind || ''}  Interface: ${r.interface || ''}  Source: ${r.source || ''}`);
+  L.push(`Temperature: ${r.temperature ?? '—'} °C  Power-on hours: ${r.powerOnHours ?? '—'}  Power cycles: ${r.powerCycles ?? '—'}  Written: ${r.hostWritten != null ? fmtBytes(r.hostWritten) : '—'}  Life used: ${r.lifeUsed != null ? r.lifeUsed + ' %' : '—'}`);
+  if (r.attributes?.length) {
+    L.push('', 'ID  Attribute                  Cur Wor Thr  Raw');
+    for (const a of r.attributes) L.push(`${String(a.id).padStart(3)} ${(a.name || '').padEnd(26).slice(0, 26)} ${String(a.value ?? '-').padStart(3)} ${String(a.worst ?? '-').padStart(3)} ${String(a.thresh ?? '-').padStart(3)}  ${a.rawString ?? a.raw ?? ''}${a.flag && a.flag !== 'ok' ? '  <' + a.flag + '>' : ''}`);
+  }
+  if (r.nvme) { L.push('', 'NVMe health log:'); for (const [k, v] of Object.entries(r.nvme)) if (v != null) L.push(`  ${k}: ${v}`); }
+  if (r.counters) { L.push('', 'Windows storage counters:'); for (const [k, v] of Object.entries(r.counters)) if (v != null) L.push(`  ${k}: ${v}`); }
+  if (r.selfTest?.log?.length) { L.push('', 'Self-tests:'); for (const e of r.selfTest.log) L.push(`  ${e.type}: ${e.status} (at ${e.hours ?? '?'} h)`); }
+  if (r.warnings?.length) { L.push('', 'Notes:'); for (const w of r.warnings) L.push('  ' + w); }
+  copyText(L.join('\n'), 'Report copied');
+});
+document.addEventListener('booted', async () => {
+  const r = await api('/api/smart/all');
+  if (!r.error && r.reports) { Object.assign(S.smart, r.reports); render(); }
 });

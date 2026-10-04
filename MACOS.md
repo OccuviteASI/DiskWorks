@@ -25,6 +25,7 @@ Optional tools DiskWorks uses when they are present (it never installs them):
 | Tool | Gives | Install |
 |---|---|---|
 | 7-Zip | the read-only file browser for partitions macOS cannot mount (ext4, btrfs, xfs, NTFS without a driver) | `brew install 7zip` |
+| smartmontools | the Drive health panel on the Disks tab (S.M.A.R.T. attributes, NVMe log, self-tests); without it macOS only reports `diskutil`'s Verified / Failing | `brew install smartmontools` |
 | macFUSE + ntfs-3g | NTFS **read-write** (macOS reads NTFS by itself, read-only) | `brew install --cask macfuse` then `brew install gromgit/fuse/ntfs-3g-mac`. macFUSE 5.1+ works through the FSKit backend without a kernel extension; older versions need "Reduced Security" on Apple Silicon |
 | ExtendFS (App Store, macOS 15.6+) | ext2/3/4 read-only, mounts automatically | App Store |
 

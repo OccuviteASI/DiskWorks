@@ -34,6 +34,11 @@ def verbs(helper) -> dict:
         out.update(dw_access.helper_verbs(helper))
     except ImportError:
         pass
+    try:
+        import dw_smart
+        out.update(dw_smart.helper_verbs(helper))
+    except ImportError:
+        pass
     return out
 
 

@@ -1,11 +1,13 @@
-"""Space browser (DaisyDisk style): scan a volume or folder, keep a size tree in memory,
-serve it level by level for the sunburst, delete what the user picks (to the Recycle
-Bin / Trash by default, permanently on request) and reveal items in the file manager.
-Runs in the window process with the user's own permissions; folders it may not read are
-counted as skipped.
+"""Space browser (DaisyDisk rings + WizTree treemap): scan a volume or folder, keep a
+size tree in memory, serve it level by level for the rings and the treemap, keep the
+largest files and the per-file-type totals of the whole scan, delete what the user picks
+(to the Recycle Bin / Trash by default, permanently on request) and reveal items in the
+file manager.  Runs in the window process with the user's own permissions; folders it
+may not read are counted as skipped.
 """
 from __future__ import annotations
 
+import heapq
 import os
 import shutil
 import stat
@@ -17,6 +19,10 @@ import time
 IS_WIN = os.name == "nt"
 IS_MAC = sys.platform == "darwin"
 TOP_FILES = 40            # largest files remembered per folder; the rest is "other files"
+LARGEST = 1000            # largest files remembered for the whole scan (WizTree's "File view")
+TYPES_SHOWN = 60          # file types listed; the rest is aggregated
+TREE_CHILDREN = 60        # subfolders exported per level for the rings
+TREEMAP_CHILDREN = 400    # ... and for the treemap (its tiles are pruned by size instead)
 CRITICAL = [
     "C:\\Windows", "C:\\Program Files", "C:\\Program Files (x86)", "C:\\ProgramData", "C:\\Users", "C:\\$Recycle.Bin",
     "/System", "/Library", "/usr", "/bin", "/sbin", "/etc", "/var", "/private", "/Applications", "/Users", "/boot", "/lib", "/lib64", "/proc", "/sys", "/dev", "/home",
@@ -55,6 +61,8 @@ class SpaceScan:
                             "done": False, "error": None, "started": None, "finished": None}
         self.root: str | None = None
         self.tree: Node | None = None
+        self.types: dict[str, list] = {}          # ext -> [bytes, count]
+        self.largest: list[tuple[int, float, str]] = []   # min-heap of (size, mtime, rel path)
         self.lock = threading.Lock()
         self.stop_flag = threading.Event()
         self.thread: threading.Thread | None = None
@@ -70,8 +78,17 @@ class SpaceScan:
             return True
         if path == "/api/space/tree":
             rel = q.get("path", [""])[0]
-            depth = int(q.get("depth", ["2"])[0])
-            h._json(self.subtree(rel, depth))
+            depth = max(1, min(5, int(q.get("depth", ["2"])[0])))
+            min_frac = float(q.get("min", ["0"])[0])        # prune children below this share of the node (treemap)
+            limit = TREEMAP_CHILDREN if min_frac > 0 else TREE_CHILDREN
+            h._json(self.subtree(rel, depth, min_frac, limit))
+            return True
+        if path == "/api/space/types":
+            h._json(self.file_types())
+            return True
+        if path == "/api/space/largest":
+            n = max(1, min(LARGEST, int(q.get("n", ["200"])[0])))
+            h._json(self.largest_files(n))
             return True
         return False
 
@@ -123,6 +140,8 @@ class SpaceScan:
         with self.lock:
             self.root = root
             self.tree = Node("", None)
+            self.types = {}
+            self.largest = []
         self.state = {"running": True, "root": root, "dirs": 0, "files": 0, "bytes": 0, "skipped": 0, "current": root,
                       "done": False, "error": None, "started": time.time(), "finished": None}
         self.thread = threading.Thread(target=self._scan, args=(root,), daemon=True, name="spacescan")
@@ -132,9 +151,12 @@ class SpaceScan:
 
     def _scan(self, root: str) -> None:
         tree = self.tree
+        types = self.types
+        largest = self.largest
         last = time.time()
         dirs = files = total = skipped = 0
         stack: list[tuple[str, Node]] = [(root, tree)]
+        rootlen = len(root.rstrip("\\/")) + 1
         try:
             while stack and not self.stop_flag.is_set():
                 path, node = stack.pop()
@@ -162,6 +184,20 @@ class SpaceScan:
                                 sz = st.st_size
                                 files += 1
                                 total += sz
+                                dot = e.name.rfind(".")
+                                ext = e.name[dot + 1:].lower() if 0 < dot < len(e.name) - 1 and len(e.name) - dot <= 12 else ""
+                                if ext.isdigit():       # libfoo.so.1, backup.2: a version, not a type
+                                    ext = ""
+                                t = types.get(ext)
+                                if t is None:
+                                    types[ext] = [sz, 1]
+                                else:
+                                    t[0] += sz
+                                    t[1] += 1
+                                if len(largest) < LARGEST:
+                                    heapq.heappush(largest, (sz, st.st_mtime, e.path[rootlen:]))
+                                elif sz > largest[0][0]:
+                                    heapq.heapreplace(largest, (sz, st.st_mtime, e.path[rootlen:]))
                                 n = node
                                 while n is not None:
                                     n.size += sz
@@ -216,28 +252,57 @@ class SpaceScan:
                 return None
         return n
 
-    def subtree(self, rel: str, depth: int = 2) -> dict:
+    def subtree(self, rel: str, depth: int = 2, min_frac: float = 0.0, limit: int = TREE_CHILDREN) -> dict:
         with self.lock:
             if self.tree is None or self.root is None:
                 raise RuntimeError("Nothing scanned yet.")
             node = self._node_at(rel)
             if node is None:
                 raise RuntimeError("That folder is no longer in the scan.")
-            return {"root": self.root, "path": rel, "node": self._export(node, depth, rel), "state": self.state}
+            floor = int(node.size * min_frac) if min_frac > 0 else 0
+            return {"root": self.root, "path": rel, "node": self._export(node, depth, rel, floor, limit), "state": self.state}
 
-    def _export(self, node: Node, depth: int, rel: str) -> dict:
+    def _export(self, node: Node, depth: int, rel: str, floor: int = 0, limit: int = TREE_CHILDREN) -> dict:
+        """One level of the tree. `floor` (bytes) prunes subfolders and files too small to draw: what
+        is pruned is summed into `pruned` so the shares still add up (the treemap asks with a floor)."""
         d = {"name": node.name, "rel": rel, "size": node.size, "files": node.files, "dirs": node.dirs, "skipped": node.skipped,
              "other": node.other, "otherCount": node.otherCount,
-             "top": [{"name": n, "size": s, "mtime": m, "rel": (rel + "/" if rel else "") + n} for n, s, m in node.top[:TOP_FILES]],
+             "top": [{"name": n, "size": s, "mtime": m, "rel": (rel + "/" if rel else "") + n} for n, s, m in node.top[:TOP_FILES] if s >= floor],
              "children": []}
         kids = sorted(node.children.values(), key=lambda c: -c.size)
-        for c in kids[:60]:
+        shown = [c for c in kids[:limit] if c.size >= floor]
+        for c in shown:
             crel = (rel + "/" if rel else "") + c.name
-            d["children"].append(self._export(c, depth - 1, crel) if depth > 1 else
+            d["children"].append(self._export(c, depth - 1, crel, floor, limit) if depth > 1 else
                                  {"name": c.name, "rel": crel, "size": c.size, "files": c.files, "dirs": c.dirs, "skipped": c.skipped, "children": None})
-        if len(kids) > 60:
-            d["moreDirs"] = {"count": len(kids) - 60, "size": sum(c.size for c in kids[60:])}
+        shown_ids = {id(c) for c in shown}
+        rest = [c for c in kids if id(c) not in shown_ids]
+        if rest:
+            d["moreDirs"] = {"count": len(rest), "size": sum(c.size for c in rest)}
+        if floor:
+            d["prunedFiles"] = sum(s for _, s, _ in node.top if s < floor)
         return d
+
+    def file_types(self) -> dict:
+        """Totals per file extension over the whole scan (WizTree's "File types" view)."""
+        with self.lock:
+            if self.tree is None or self.root is None:
+                raise RuntimeError("Nothing scanned yet.")
+            rows = sorted(((ext, v[0], v[1]) for ext, v in self.types.items()), key=lambda r: -r[1])
+            total = sum(r[1] for r in rows)
+            out = [{"ext": ext, "size": size, "count": count} for ext, size, count in rows[:TYPES_SHOWN]]
+            rest = rows[TYPES_SHOWN:]
+            if rest:
+                out.append({"ext": None, "size": sum(r[1] for r in rest), "count": sum(r[2] for r in rest), "types": len(rest)})
+            return {"root": self.root, "total": total, "types": out, "running": bool(self.state.get("running"))}
+
+    def largest_files(self, n: int) -> dict:
+        with self.lock:
+            if self.tree is None or self.root is None:
+                raise RuntimeError("Nothing scanned yet.")
+            top = heapq.nlargest(n, self.largest)
+            return {"root": self.root, "files": [{"rel": rel.replace("\\", "/"), "name": os.path.basename(rel), "size": size, "mtime": mtime} for size, mtime, rel in top],
+                    "total": self.tree.size, "running": bool(self.state.get("running"))}
 
     # -- deleting ------------------------------------------------------------------
     def _abs(self, rel: str) -> str:
@@ -273,6 +338,7 @@ class SpaceScan:
                 freed += size
                 results.append(p)
                 self._forget(rel, size)
+                self._forget_largest(rel)
             except Exception as e:
                 errors.append(f"{p}: {e}")
         self.app.info(f"Deleted {len(results)} item(s) ({freed:,} bytes) {'permanently' if mode == 'permanent' else 'to the Recycle Bin / Trash'}"
@@ -303,6 +369,15 @@ class SpaceScan:
                 n.size = max(0, n.size - size)
                 n.files = max(0, n.files - files)
                 n = n.parent
+
+    def _forget_largest(self, rel: str) -> None:
+        """Drop a deleted file (or everything under a deleted folder) from the largest-files list."""
+        with self.lock:
+            key = rel.replace("\\", "/").strip("/")
+            keep = [t for t in self.largest if not (t[2].replace("\\", "/") == key or t[2].replace("\\", "/").startswith(key + "/"))]
+            if len(keep) != len(self.largest):
+                heapq.heapify(keep)
+                self.largest = keep
 
     def reveal(self, rel: str) -> dict:
         p = self._abs(rel) if rel else self.root

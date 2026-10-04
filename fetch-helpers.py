@@ -29,14 +29,21 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 IS_WIN = os.name == "nt"
 TAG = "win64" if IS_WIN else "linux-x86_64"
 
-# Windows downloads (pinned).  7-Zip drives the read-only browser (APFS, HFS+, ext, NTFS, FAT).
-# ISO mode (wimlib, UEFI:NTFS) and the driver offers (WinBtrfs) arrive with later builds.
+# Windows downloads (pinned).  7-Zip drives the read-only browser (APFS, HFS+, ext, NTFS, FAT);
+# smartmontools' smartctl reads drive health (the Disks tab, 0.3.0).  ISO mode (wimlib,
+# UEFI:NTFS) and the driver offers (WinBtrfs) arrive with later builds.
 SEVENZIP_VERSION = "2501"
+SMARTMONTOOLS_VERSION = "7.5"
 DOWNLOADS: dict[str, dict] = {
     "7zr": {"url": "https://www.7-zip.org/a/7zr.exe", "sha256": "ad4c82fadcbdf93c03b4fc440f300509c7d60c5c2f4d183e35d9d70d6957037d",
             "kind": "bin", "dest": "bin/win64/7zip", "files": ["7zr.exe"]},
     "7zip": {"url": f"https://www.7-zip.org/a/7z{SEVENZIP_VERSION}-x64.exe", "sha256": "78afa2a1c773caf3cf7edf62f857d2a8a5da55fb0fff5da416074c0d28b2b55f",
              "kind": "7zsfx", "dest": "bin/win64/7zip", "files": ["7z.exe", "7z.dll", "License.txt"]},
+    # the NSIS installer is unpacked with the full 7z.exe fetched above; only the x64 smartctl and the GPL text are kept
+    "smartmontools": {"url": f"https://sourceforge.net/projects/smartmontools/files/smartmontools/{SMARTMONTOOLS_VERSION}/smartmontools-{SMARTMONTOOLS_VERSION}.win32-setup.exe/download",
+                      "sha256": "896337fcc253220614cf8cdbd5cf2321c5aa326a37a04160a672a281e6104c70",
+                      "kind": "nsis", "dest": "bin/win64/smartmontools", "files": ["smartctl.exe", "COPYING.txt"],
+                      "members": {"bin/smartctl.exe": "smartctl.exe", "doc/COPYING.txt": "COPYING.txt"}, "filename": "smartmontools-setup.exe"},
     # "wimlib": {"url": "https://wimlib.net/downloads/wimlib-1.14.5-windows-x86_64-bin.zip", "sha256": "REPLACE",
     #            "kind": "zip", "dest": "bin/win64/wimlib", "files": ["wimlib-imagex.exe", "libwim-15.dll"]},
 }
@@ -56,8 +63,9 @@ LINUX_PACKAGES: dict[str, list[str]] = {
     "cryptsetup-bin": ["cryptsetup"],
     "7zip": ["7zz", "7z"],
     "hfsprogs": ["mkfs.hfsplus", "fsck.hfsplus"],
+    "smartmontools": ["smartctl"],
 }
-OPTIONAL_PACKAGES = {"fatresize", "f2fs-tools", "cryptsetup-bin", "hfsprogs"}
+OPTIONAL_PACKAGES = {"fatresize", "f2fs-tools", "cryptsetup-bin", "hfsprogs", "smartmontools"}
 
 REQUIRED = {
     "win64": ["7zip/7z.exe", "7zip/7z.dll"],
@@ -98,7 +106,7 @@ def fetch_downloads(tag: str) -> None:
         if all(os.path.isfile(os.path.join(dest_dir, f)) for f in spec["files"]):
             print(f"{name}: already present")
             continue
-        tmp = os.path.join(dest_dir, os.path.basename(spec["url"]))
+        tmp = os.path.join(dest_dir, spec.get("filename") or os.path.basename(spec["url"]))
         download(spec["url"], tmp)
         got = sha256_of(tmp)
         if spec["sha256"] == "REPLACE":
@@ -116,6 +124,22 @@ def fetch_downloads(tag: str) -> None:
                 sys.exit(f"{name}: 7zr.exe is needed to unpack the installer; fetch '7zr' first")
             r = subprocess.run([zr, "x", "-y", f"-o{dest_dir}", tmp] + spec["files"], capture_output=True, text=True)
             os.remove(tmp)
+            if r.returncode != 0 or not all(os.path.isfile(os.path.join(dest_dir, f)) for f in spec["files"]):
+                sys.exit(f"{name}: unpacking failed: {(r.stdout + r.stderr).strip()[-400:]}")
+            print(f"{name}: ok ({', '.join(spec['files'])})")
+            continue
+        if spec["kind"] == "nsis":
+            z = os.path.join(HERE, "bin", "win64", "7zip", "7z.exe")
+            if not os.path.isfile(z):
+                sys.exit(f"{name}: 7z.exe is needed to unpack the installer; fetch '7zip' first")
+            members = spec["members"]
+            r = subprocess.run([z, "e", "-y", f"-o{dest_dir}", tmp] + list(members), capture_output=True, text=True)
+            os.remove(tmp)
+            # 7z e flattens the paths; rename what we kept to the names DiskWorks looks for
+            for src, want in members.items():
+                flat = os.path.join(dest_dir, os.path.basename(src))
+                if os.path.isfile(flat) and flat != os.path.join(dest_dir, want):
+                    os.replace(flat, os.path.join(dest_dir, want))
             if r.returncode != 0 or not all(os.path.isfile(os.path.join(dest_dir, f)) for f in spec["files"]):
                 sys.exit(f"{name}: unpacking failed: {(r.stdout + r.stderr).strip()[-400:]}")
             print(f"{name}: ok ({', '.join(spec['files'])})")
@@ -182,7 +206,7 @@ def linux_tools() -> None:
     for t in sorted(manifest["tools"]):
         p = os.path.join(dest, t)
         try:
-            r = subprocess.run([p, "--version"] if t not in ("blockdev", "mkswap", "swaplabel", "wipefs", "sfdisk", "blkid", "losetup", "e2label", "fatlabel", "fsck.fat", "mkfs.fat") else [p, "-V"],
+            r = subprocess.run([p, "--version"] if t not in ("blockdev", "mkswap", "swaplabel", "wipefs", "sfdisk", "blkid", "losetup", "e2label", "fatlabel", "fsck.fat", "mkfs.fat", "smartctl") else [p, "-V"],
                                capture_output=True, timeout=10)
             if r.returncode not in (0, 1, 2, 16, 64):
                 bad.append(f"{t} (exit {r.returncode})")

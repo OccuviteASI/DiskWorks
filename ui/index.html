@@ -164,7 +164,7 @@
 <section id="tab-space" class="tab hidden">
   <section class="card">
     <h2>What is using the space</h2>
-    <p class="hint">Scans a drive or folder and draws it as rings — the bigger the slice, the more space it takes. Click a slice or a row to look inside. Tick things to move them to the Recycle Bin / Trash or delete them for good.</p>
+    <p class="hint">Scans a drive or folder and draws it as rings (DaisyDisk style) or as a treemap (WizTree style) — the bigger the slice or tile, the more space it takes. Click a slice, a tile or a row to look inside. Tick things to move them to the Recycle Bin / Trash or delete them for good.</p>
     <div class="row wrap">
       <select id="spcTarget"></select>
       <button id="spcScan" class="btn primary">Scan</button>
@@ -176,15 +176,34 @@
   </section>
   <section class="card hidden" id="spcResult">
     <div class="row wrap"><div class="crumbs" id="spcCrumb"></div><span class="grow"></span>
+      <div class="segmented" id="spcView" role="tablist"><button data-view="rings" class="on" role="tab">Rings</button><button data-view="treemap" role="tab">Treemap</button></div>
       <button class="btn small" id="spcUp">Up</button>
       <button class="btn small" id="spcReveal" disabled>Show in file manager</button>
       <button class="btn small" id="spcTrash" disabled>Move to Trash</button>
       <button class="btn small danger" id="spcDelete" disabled>Delete permanently</button></div>
-    <div class="space-layout">
+    <div class="space-layout" id="spcLayout">
       <div class="sunwrap"><svg id="sunburst" viewBox="-160 -160 320 320"></svg><div class="suncenter" id="sunCenter"></div></div>
+      <div class="mapwrap hidden" id="mapWrap">
+        <canvas id="treemap"></canvas>
+        <div class="maplegend" id="mapLegend"></div>
+      </div>
       <div class="tablewrap space-list"><table class="grid" id="spcList">
         <thead><tr><th class="chkcol"><input type="checkbox" id="spcAll" title="Select all"></th><th>Name</th><th class="num">Size</th><th class="num">Share</th><th class="num">Items</th></tr></thead>
         <tbody></tbody></table></div>
+    </div>
+    <div class="layout space-extra">
+      <details class="card sub" id="spcTypesCard" open>
+        <summary><h3 class="sub">By file type <span class="soft" id="spcTypesInfo"></span></h3></summary>
+        <div class="tablewrap space-list"><table class="grid" id="spcTypes">
+          <thead><tr><th>Type</th><th class="num">Size</th><th class="num">Share</th><th class="num">Files</th></tr></thead>
+          <tbody></tbody></table></div>
+      </details>
+      <details class="card sub" id="spcLargestCard" open>
+        <summary><h3 class="sub">Largest files anywhere in the scan <span class="soft" id="spcLargestInfo"></span></h3></summary>
+        <div class="tablewrap space-list"><table class="grid" id="spcLargest">
+          <thead><tr><th class="chkcol"></th><th>File</th><th class="num">Size</th><th>Modified</th></tr></thead>
+          <tbody></tbody></table></div>
+      </details>
     </div>
   </section>
 </section>
@@ -212,11 +231,11 @@
   <div class="dlg-head"><h3>About DiskWorks</h3><button class="icon-btn" data-close>✕</button></div>
   <div class="dlg-body about">
     <p><b>DiskWorks</b> shows the disks in this computer the way Windows Disk Management does and lets you change them with the detailed options of GParted — on Windows, Linux and macOS, from one window.</p>
-    <h4>Disks</h4><p>Every disk is a bar, every partition a segment, unallocated space is hatched. Select something to see its details. Queue changes (create, delete, format, resize, label, drive letter, table type) and press <b>Apply</b>; nothing touches the disk before that. The exact commands are always one click away.</p>
+    <h4>Disks</h4><p>Every disk is a bar, every partition a segment, unallocated space is hatched. Select something to see its details. Queue changes (create, delete, format, resize, label, drive letter, table type) and press <b>Apply</b>; nothing touches the disk before that. The exact commands are always one click away. <b>Drive health</b> reads a disk's S.M.A.R.T. data (temperature, hours, wear, reallocated sectors, the drive's own pass / fail) and sums it up as Good, Caution or Bad.</p>
     <h4>Image</h4><p>Write an ISO or image file to a USB stick (Rufus-style), back up a disk or a partition to a compressed image, restore it later, and verify what was written.</p>
     <h4>Access</h4><p>When this computer cannot open a partition by itself (for example ext4 on Windows), DiskWorks works through the ways to make it readable and writable and tells you which one it used.</p>
     <h4>Speed</h4><p>Measures how fast a drive really writes and reads, with the cache switched off, and tells you which video formats it can sustain.</p>
-    <h4>Space</h4><p>Shows what fills a drive as rings you can click into, and lets you move files to the Recycle Bin / Trash or delete them.</p>
+    <h4>Space</h4><p>Shows what fills a drive as rings or as a treemap you can click into, lists the largest files and the totals per file type, and lets you move files to the Recycle Bin / Trash or delete them.</p>
     <h4>Log</h4><p>Every command the app ran, with its output.</p>
     <h4>Administrator rights</h4><p>Looking never needs them. The first change asks once (Windows UAC / Linux password / macOS administrator prompt) and starts a small helper process that does the privileged work for the rest of the session. The window itself never runs as administrator.</p>
     <p class="hint">Version <span id="aboutVer"></span>. Everything is bundled; nothing is downloaded at run time.</p>
@@ -233,6 +252,16 @@
   <div class="dlg-head"><h3 id="cfTitle">Are you sure?</h3><button class="icon-btn" data-close>✕</button></div>
   <div class="dlg-body" id="cfBody"></div>
   <div class="dlg-foot"><span class="grow"></span><button class="btn" data-close>Cancel</button><button id="cfOk" class="btn danger" disabled>Continue</button></div>
+</dialog>
+
+<dialog id="dlgHealth" class="dlg wide">
+  <div class="dlg-head"><h3 id="hlTitle">Drive health</h3><button class="icon-btn" data-close>✕</button></div>
+  <div class="dlg-body" id="hlBody"></div>
+  <div class="dlg-foot"><span id="hlNote" class="hint"></span><span class="grow"></span>
+    <button id="hlSelfTest" class="btn hidden">Run short self-test</button>
+    <button id="hlRefresh" class="btn">Read again</button>
+    <button id="hlCopy" class="btn">Copy report</button>
+    <button class="btn" data-close>Close</button></div>
 </dialog>
 
 <dialog id="dlgText" class="dlg wide">

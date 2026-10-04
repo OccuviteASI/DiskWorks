@@ -4,6 +4,36 @@ All notable changes to DiskWorks. The version number is defined once, in
 `diskworks.py` (`VERSION`), and read by the UI and `build.py`. Clicking the version
 pill in the app shows the section below that matches the running version.
 
+## 0.3.0 - 2026-10-04
+
+- **Disks: Drive health (S.M.A.R.T.).** Right-click a disk (or use its Actions strip) →
+  *Drive health*. DiskWorks reads the drive's self-monitoring data and sums it up as
+  **Good**, **Caution** or **Bad** with the reasons spelled out, then shows the figures:
+  temperature, time powered on, power cycles, total written, life used, reallocated /
+  pending / uncorrectable sectors (or spare capacity and media errors on NVMe), the full
+  attribute table with current / worst / threshold / raw, the NVMe health log, the
+  self-test history, and a *Run short self-test* button. *Copy report* puts it all on the
+  clipboard. Reading needs Unlock (the drive is asked directly); nothing is changed on the
+  disk. A chip on the disk bar and in the detail pane remembers the last verdict.
+  Sources: smartctl (smartmontools 7.5, now bundled on Windows and Linux; `brew install
+  smartmontools` on a Mac), with fallbacks to Windows' storage reliability counters and
+  the WMI failure-prediction attribute block, and to `diskutil`'s SMART status on macOS.
+- **Space: treemap view (WizTree style).** A *Rings / Treemap* switch above the picture.
+  The treemap tiles the folder being viewed: folders are frames with a name strip and their
+  contents drawn inside (four levels deep, tiles too small to see are summed), files are
+  coloured by what they are (video, pictures, music, archives, documents, code, programs
+  and system files, disk images, databases) with a legend. Hover for size and share, click
+  a folder's name strip or double-click to open it, click a file to tick it. Free space is
+  part of the picture at a drive's root, as in the rings.
+- **Space: largest files and file types.** Two new sections under the picture: the 200
+  largest files anywhere in the scan (tickable for Move to Trash / Delete, click to jump to
+  the folder) and the totals per file type with share bars. Version suffixes such as
+  `.so.1` do not count as a type.
+- Linux: `partx` and `smartctl` join the bundled tools (`fetch-helpers.py linux-tools`);
+  Windows: `fetch-helpers.py win64` unpacks `smartctl.exe` from the smartmontools installer
+  (SHA-256 pinned) next to 7-Zip. Both are optional: without them the health panel says
+  what it could not read.
+
 ## 0.2.2 - 2026-09-22
 
 - **Fix (Linux, operations):** after a partition-table write the engine now checks that the
