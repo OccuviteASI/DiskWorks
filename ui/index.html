@@ -164,7 +164,7 @@
 <section id="tab-space" class="tab hidden">
   <section class="card">
     <h2>What is using the space</h2>
-    <p class="hint">Scans a drive or folder and draws it as rings (DaisyDisk style) or as a treemap (WizTree style) — the bigger the slice or tile, the more space it takes. Click a slice, a tile or a row to look inside. Tick things to move them to the Recycle Bin / Trash or delete them for good.</p>
+    <p class="hint">Scans a drive or folder and draws it as rings (DaisyDisk style) or as a treemap (WizTree style) — the bigger the slice or tile, the more space it takes. Click a slice, a tile or a row to look inside; click the middle of the rings to go back up. Tick things to move them to the Recycle Bin / Trash or delete them for good.</p>
     <div class="row wrap">
       <select id="spcTarget"></select>
       <button id="spcScan" class="btn primary">Scan</button>
@@ -178,7 +178,7 @@
     <div class="row wrap"><div class="crumbs" id="spcCrumb"></div><span class="grow"></span>
       <label class="chk" title="Show the drive's unused space in the picture (only at the top of a drive)"><input type="checkbox" id="spcFree"> Show free space</label>
       <div class="segmented" id="spcView" role="tablist"><button data-view="rings" class="on" role="tab">Rings</button><button data-view="treemap" role="tab">Treemap</button></div>
-      <button class="btn small" id="spcUp">Up</button>
+      <button class="btn small hidden" id="spcUp">Up</button>
       <button class="btn small" id="spcReveal" disabled>Show in file manager</button>
       <button class="btn small" id="spcTrash" disabled>Move to Trash</button>
       <button class="btn small danger" id="spcDelete" disabled>Delete permanently</button></div>

@@ -346,3 +346,9 @@ details.card.sub .tablewrap { margin-top: 10px; max-height: 420px; }
 .grid td .dot.warn { background: var(--warn); } .grid td .dot.bad { background: var(--bad); } .grid td .dot.info { background: var(--soft); }
 .grid tr.attr-bad td { background: var(--bad-soft); } .grid tr.attr-warn td { background: var(--warn-soft); }
 .hwarn { margin-top: 12px; }
+
+/* ring centre: click to go up a level (DaisyDisk style) */
+.sunwrap circle.hub { fill: transparent; transition: fill .12s; }
+.sunwrap circle.hub.up { cursor: pointer; }
+.sunwrap circle.hub.up:hover { fill: var(--accent-soft); }
+.suncenter .uparrow { display: block; color: var(--accent); font-size: 16px; line-height: 1; margin-bottom: 2px; }

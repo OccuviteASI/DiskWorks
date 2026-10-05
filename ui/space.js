@@ -129,8 +129,10 @@ function renderSunburst() {
     a += span;
   });
   if (showFree) paths.push(`<path class="free" d="${wedge(R0, R1, a, -Math.PI / 2 + 2 * Math.PI)}" data-free="1"/>`);
-  svg.innerHTML = paths.join('');
-  $('#sunCenter').innerHTML = `<b title="${esc(SC.root + (SC.path ? '/' + SC.path : ''))}">${esc(SC.path ? SC.path.split('/').pop() : SC.root)}</b>${fmtBytes(node.size)}<br>${(node.files || 0).toLocaleString()} files`;
+  const upTo = SC.path ? (SC.path.split('/').slice(0, -1).pop() || SC.root) : null;
+  svg.innerHTML = `<circle class="hub${SC.path ? ' up' : ''}" r="${R0 - 3}" data-up="1"/>` + paths.join('');
+  $('#sunCenter').innerHTML = `${SC.path ? '<span class="uparrow" aria-hidden="true">↑</span>' : ''}<b title="${esc(SC.root + (SC.path ? '/' + SC.path : ''))}">${esc(SC.path ? SC.path.split('/').pop() : SC.root)}</b>${fmtBytes(node.size)}<br>${(node.files || 0).toLocaleString()} files`;
+  $('#sunburst').querySelector('circle.hub').innerHTML = upTo ? `<title>Back up to ${esc(upTo)}</title>` : '';
   svg._items = items;
 }
 function itemAt(pathEl) {
@@ -139,6 +141,7 @@ function itemAt(pathEl) {
   if (pathEl.dataset.ring === '2' && it.node) { const inner = slices(it.node)[+pathEl.dataset.j]; return inner ? { ...inner, parent: it } : it; }
   return it;
 }
+function goUp() { if (SC.path) loadNode(SC.path.split('/').slice(0, -1).join('/')); }
 $('#sunburst').addEventListener('mousemove', e => {
   const p = e.target.closest('path'); if (!p || p.dataset.free) { tip.classList.add('hidden'); return; }
   const it = itemAt(p); if (!it) return;
@@ -149,6 +152,7 @@ $('#sunburst').addEventListener('mousemove', e => {
 });
 $('#sunburst').addEventListener('mouseleave', () => tip.classList.add('hidden'));
 $('#sunburst').addEventListener('click', e => {
+  if (e.target.closest('circle.hub')) { goUp(); return; }
   const p = e.target.closest('path'); if (!p || p.dataset.free) return;
   const it = itemAt(p); if (!it) return;
   if (it.kind === 'dir') loadNode(it.rel);
@@ -191,7 +195,7 @@ $('#spcAll').addEventListener('change', e => {
   renderList();
 });
 $('#spcCrumb').addEventListener('click', e => { const b = e.target.closest('button'); if (b) loadNode(b.dataset.path); });
-$('#spcUp').addEventListener('click', () => loadNode(SC.path.split('/').slice(0, -1).join('/')));
+$('#spcUp').addEventListener('click', () => goUp());
 $('#spcReveal').addEventListener('click', () => { const rel = [...SC.sel][0]; if (rel != null) api('/api/space/reveal', { path: rel }).then(r => { if (r.error) toast(r.error, 5000); }); });
 
 async function removeSelected(mode) {
@@ -393,6 +397,7 @@ function setView(v) {
   $('.sunwrap').classList.toggle('hidden', v !== 'rings');
   $('#mapWrap').classList.toggle('hidden', v !== 'treemap');
   $('#spcLayout').classList.toggle('map', v === 'treemap');
+  $('#spcUp').classList.toggle('hidden', v !== 'treemap');
   api('/api/settings', { patch: { spaceView: v } });
   if (v === 'treemap' && SC.node) { if (SC.map) renderMap(); else loadMap(); }
 }

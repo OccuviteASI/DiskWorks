@@ -4,6 +4,12 @@ All notable changes to DiskWorks. The version number is defined once, in
 `diskworks.py` (`VERSION`), and read by the UI and `build.py`. Clicking the version
 pill in the app shows the section below that matches the running version.
 
+## 0.3.2 - 2026-10-05
+
+- **Space:** click the middle of the rings to go back up one folder, the way DaisyDisk does.
+  Inside a folder the centre shows an ↑ arrow and highlights on hover; at the top of the
+  scan it does nothing. The **Up** button is now shown only in the Treemap view.
+
 ## 0.3.1 - 2026-10-05
 
 - **Space:** free space is now hidden by default in both the rings and the treemap, so the
