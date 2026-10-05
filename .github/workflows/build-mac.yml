@@ -40,7 +40,7 @@ jobs:
           PYTHON: python
         run: |
           set -o pipefail
-          if ! ./build-mac.sh 2>&1 | tee build.log; then
+          if ! sh ./build-mac.sh 2>&1 | tee build.log; then
             # surface the end of the log as an annotation (readable without log access)
             tail -n 60 build.log | python -c "import sys; print('::error title=build-mac.sh failed::' + sys.stdin.read().replace('%','%25').replace('\r','').replace('\n','%0A'))"
             exit 1
