@@ -6,7 +6,15 @@
     python build.py --wsl --linux-only
     python build.py --console    keep a console window (Windows debugging)
     python build.py --onedir     folder build instead of one file (faster start)
+    python build.py --no-mac     skip the macOS part below
     ./build-mac.sh               macOS: venv + deps + DiskWorks.app (see MACOS.md)
+
+macOS from Windows / Linux: PyInstaller cannot build a Mac app here, so the GitHub
+workflow .github/workflows/build-mac.yml builds DiskWorks.app on an Apple Silicon runner
+for every push to main and attaches it to the release v<version>.  After a Windows or
+Linux build this script fills dist/mac-arm64/ with that app when it exists (plain HTTPS
+download, the repository is public), and always with the source kit and
+BUILD-ON-MAC.txt for building on a Mac yourself.
 
 PyInstaller cannot cross-compile, so each platform builds its own binary.  The Linux
 binary carries the partition and filesystem tools copied by `fetch-helpers.py
@@ -29,6 +37,8 @@ WINDOWS = sys.platform == "win32"
 LINUX = sys.platform.startswith("linux")
 MAC = sys.platform == "darwin"
 BUNDLE_ID = "com.asirobots.diskworks"
+REPO = "OccuviteASI/DiskWorks"
+MAC_TAG = "mac-arm64"
 
 
 def _tag() -> str:
@@ -230,6 +240,39 @@ def build_here(console: bool, onedir: bool) -> int:
     return 0
 
 
+def mac_kit() -> None:
+    """dist/mac-arm64/: the CI-built app for this version when published, plus the source kit
+    and BUILD-ON-MAC.txt (instructions for both using the app and building it on a Mac)."""
+    import urllib.error
+    import urllib.request
+    ver = version()
+    dest = os.path.join(HERE, "dist", MAC_TAG)
+    os.makedirs(dest, exist_ok=True)
+    shutil.copyfile(os.path.join(HERE, "tools", "BUILD-ON-MAC.txt"), os.path.join(dest, "BUILD-ON-MAC.txt"))
+    # source kit: the same zip tools/pack_source.py makes, placed next to the instructions
+    r = subprocess.run([sys.executable, os.path.join(HERE, "tools", "pack_source.py")], capture_output=True, text=True)
+    src_zip = os.path.join(HERE, "dist", f"DiskWorks-src-{ver}.zip")
+    if r.returncode == 0 and os.path.isfile(src_zip):
+        os.replace(src_zip, os.path.join(dest, os.path.basename(src_zip)))
+    name = f"{NAME}-{ver}-{MAC_TAG}.zip"
+    url = f"https://github.com/{REPO}/releases/download/v{ver}/{name}"
+    out = os.path.join(dest, name)
+    try:
+        with urllib.request.urlopen(url, timeout=60) as resp, open(out + ".part", "wb") as f:
+            shutil.copyfileobj(resp, f)
+        os.replace(out + ".part", out)
+        print(f"macOS: {out} ({os.path.getsize(out) / 1e6:.0f} MB, built on GitHub's Mac runner)")
+    except (urllib.error.URLError, OSError) as e:
+        try:
+            os.remove(out + ".part")
+        except OSError:
+            pass
+        code = getattr(e, "code", None)
+        why = "not published yet (the Mac build runs on GitHub after you push to main; rerun build.py when it has finished)" if code == 404 else str(e)
+        print(f"macOS: app for {ver} {why}.\n       https://github.com/{REPO}/actions/workflows/build-mac.yml")
+    print(f"macOS: source kit + instructions in {dest} (see BUILD-ON-MAC.txt)")
+
+
 def finish_mac_bundle(app: str, ver: str) -> None:
     """Add the Info.plist keys macOS wants (version, HiDPI, the removable-volumes usage text
     behind the TCC prompt), then ad-hoc sign the whole bundle."""
@@ -279,12 +322,17 @@ def main() -> int:
     console = "--console" in args
     onedir = "--onedir" in args
     if "--wsl" in args:
-        code = build_in_wsl([a for a in args if a not in ("--wsl", "--console", "--linux-only")])
+        code = build_in_wsl([a for a in args if a not in ("--wsl", "--console", "--linux-only")] + ["--no-mac"])
         if code:
             return code
         if "--linux-only" in args:
+            if "--no-mac" not in args:
+                mac_kit()
             return 0
-    return build_here(console, onedir)
+    code = build_here(console, onedir)
+    if code == 0 and not MAC and "--no-mac" not in args:
+        mac_kit()
+    return code
 
 
 if __name__ == "__main__":

@@ -29,9 +29,19 @@ Optional tools DiskWorks uses when they are present (it never installs them):
 | macFUSE + ntfs-3g | NTFS **read-write** (macOS reads NTFS by itself, read-only) | `brew install --cask macfuse` then `brew install gromgit/fuse/ntfs-3g-mac`. macFUSE 5.1+ works through the FSKit backend without a kernel extension; older versions need "Reduced Security" on Apple Silicon |
 | ExtendFS (App Store, macOS 15.6+) | ext2/3/4 read-only, mounts automatically | App Store |
 
-## 2. Get the source onto the Mac
+## 2. Get the app or the source onto the Mac
 
-On the Windows machine:
+**Ready-made app (0.3.3+).** GitHub builds the app on an Apple Silicon Mac for every push to
+`main` and attaches `DiskWorks-<version>-mac-arm64.zip` to the release `v<version>`
+(https://github.com/OccuviteASI/DiskWorks/releases). `python build.py` on Windows or Linux
+also downloads it into `dist/mac-arm64/`. Unzip it, move `DiskWorks.app` to Applications,
+and open it the first time with right-click > Open (it is ad-hoc signed, not notarised), or
+run `xattr -dr com.apple.quarantine /Applications/DiskWorks.app`. The same steps are in
+`BUILD-ON-MAC.txt` next to the zip.
+
+**Building it yourself.** `git clone https://github.com/OccuviteASI/DiskWorks.git` on the Mac,
+or use the source zip. `python build.py` on Windows / Linux leaves it in `dist/mac-arm64/`;
+by hand, on the Windows machine:
 
 ```bash
 python tools/pack_source.py
@@ -42,7 +52,7 @@ Copy it to the Mac (AirDrop, a USB stick, a share), then in Terminal:
 
 ```bash
 cd ~/Downloads
-unzip DiskWorks-src-0.2.0.zip
+unzip DiskWorks-src-<version>.zip
 cd DiskWorks
 ```
 

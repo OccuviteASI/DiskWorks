@@ -4,6 +4,19 @@ All notable changes to DiskWorks. The version number is defined once, in
 `diskworks.py` (`VERSION`), and read by the UI and `build.py`. Clicking the version
 pill in the app shows the section below that matches the running version.
 
+## 0.3.3 - 2026-10-05
+
+- **macOS build alongside every build.** PyInstaller cannot make a Mac app on Windows or
+  Linux, so a GitHub workflow (`.github/workflows/build-mac.yml`) now builds
+  `DiskWorks.app` on an Apple Silicon Mac runner for every push to `main`: it runs the
+  macOS unit checks, builds with `build-mac.sh`, starts the app headless to check it, and
+  attaches `DiskWorks-<version>-mac-arm64.zip` to the release `v<version>`.
+- `python build.py` on Windows or Linux now also fills `dist/mac-arm64/`: the Mac app for
+  this version when GitHub has finished building it, the source zip, and
+  `BUILD-ON-MAC.txt` with steps both for running the ready-made app (including getting past
+  the "unidentified developer" block) and for compiling it yourself on a Mac.
+  `--no-mac` skips this.
+
 ## 0.3.2 - 2026-10-05
 
 - **Space:** click the middle of the rings to go back up one folder, the way DaisyDisk does.

@@ -4,7 +4,7 @@ DiskWorks is a disk and partition manager for people who would rather not open a
 terminal. It shows your drives the way Windows Disk Management does and offers the
 detailed operations of GParted, on Windows, Linux and macOS, from one window.
 
-**Status: 0.3.2** (Windows x64 and Linux x86_64 built and tested here; macOS Apple Silicon
+**Status: 0.3.3** (Windows x64 and Linux x86_64 built and tested here; macOS Apple Silicon
 builds with `./build-mac.sh`, see `MACOS.md` — not yet run on a Mac). See
 `ARCHITECTURE.md` for how it is built, `REQUIREMENTS.md` for what it must do, what is
 done and what was deliberately left out, and `CHANGELOG.md` for releases.
@@ -13,7 +13,7 @@ Run from source: `python diskworks.py` (needs `pip install -r requirements.txt` 
 native window; `--browser` works with the standard library alone). Build:
 `python build.py` on Windows, `python build.py --wsl --linux-only` for the Linux binary
 (after `python3 fetch-helpers.py linux-tools` inside WSL has collected the bundled tools);
-`python fetch-helpers.py win64` fetches 7-Zip and smartctl for the Windows build; on a Mac `./build-mac.sh`.
+`python fetch-helpers.py win64` fetches 7-Zip and smartctl for the Windows build; on a Mac `./build-mac.sh`. The Mac app is also built automatically on GitHub for every push to `main` and attached to the release `v<version>`; `build.py` on Windows or Linux downloads it into `dist/mac-arm64/` together with the source kit and `BUILD-ON-MAC.txt` (how to use it, and how to build it on a Mac yourself).
 
 | Tab | What it does |
 |---|---|

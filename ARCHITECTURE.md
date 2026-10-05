@@ -519,6 +519,12 @@ build-mac.sh  (on the Mac: xcode-select gate -> .venv -> pip -r requirements.txt
       NSHighResolutionCapable, NSRemovableVolumesUsageDescription; codesign --force --deep -s -)
    -> dist/mac-arm64/DiskWorks-<ver>-mac-arm64.zip (ditto -c -k --keepParent)
 tools/pack_source.py -> dist/DiskWorks-src-<ver>.zip (the tree without dist/, bin/, caches)
+.github/workflows/build-mac.yml  (GitHub, macos-14 Apple Silicon, every push to main; 0.3.3)
+   setup-python 3.14 -> mac_unit.py + smart_unit.py -> build-mac.sh -> headless start check
+   -> release v<ver>: DiskWorks-<ver>-mac-arm64.zip + BUILD-ON-MAC.txt (and a workflow artifact)
+build.py on Windows / Linux, after its own build (skip with --no-mac):
+   -> dist/mac-arm64/DiskWorks-<ver>-mac-arm64.zip   (downloaded from the release when published)
+   -> dist/mac-arm64/DiskWorks-src-<ver>.zip + BUILD-ON-MAC.txt (always)
 ```
 
 - **Windows binaries.** 0.2.0 bundles 7-Zip (`python fetch-helpers.py win64`: the console
@@ -550,6 +556,8 @@ tools/pack_source.py -> dist/DiskWorks-src-<ver>.zip (the tree without dist/, bi
   the tree to `/tmp/diskworks-src` excluding `dist`, `build`, `__pycache__`, `.git`.
   **macOS build host**: Kenton's Apple Silicon Mac, per `MACOS.md` (Command Line Tools,
   Python 3.12+, `./build-mac.sh`); the source travels as `tools/pack_source.py`'s zip.
+  Since 0.3.3 the routine Mac build is GitHub's `macos-14` runner (D-039), and `build.py`
+  pulls its zip into `dist/mac-arm64/`.
 
 ## 11. Conventions
 

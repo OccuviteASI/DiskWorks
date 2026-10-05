@@ -1,0 +1,76 @@
+# Builds DiskWorks.app on a real Apple Silicon Mac (PyInstaller cannot cross-compile) and
+# publishes it as a release asset named DiskWorks-<version>-mac-arm64.zip under the tag
+# v<version>.  build.py on Windows / Linux downloads that zip into dist/mac-arm64/.
+name: Build macOS app
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["**.md"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-mac-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mac-arm64:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Version
+        id: ver
+        run: echo "version=$(sed -nE 's/^VERSION = "([^"]+)".*/\1/p' diskworks.py)" >> "$GITHUB_OUTPUT"
+
+      - name: macOS backend unit checks
+        run: |
+          python tools/mac_unit.py
+          python tools/smart_unit.py
+
+      - name: Build DiskWorks.app
+        env:
+          PYTHON: python
+        run: ./build-mac.sh
+
+      - name: Smoke-test the app headless
+        run: |
+          APP=dist/mac-arm64/DiskWorks.app/Contents/MacOS/DiskWorks
+          "$APP" --no-open --port 8799 > app.log 2>&1 &
+          for i in $(seq 1 120); do curl -sf http://127.0.0.1:8799/api/ping && break; sleep 0.5; done
+          curl -sf http://127.0.0.1:8799/api/status | python -c "import json,sys; s=json.load(sys.stdin); print(s['version'], s['platform'], s['frozen'], s['features']); assert s['version']=='${{ steps.ver.outputs.version }}' and s['frozen']"
+          curl -sf http://127.0.0.1:8799/api/inventory | python -c "import json,sys; i=json.load(sys.stdin); print(len(i['disks']), 'disks:', [d['name'] for d in i['disks']])"
+          curl -sf -X POST http://127.0.0.1:8799/api/quit -d '{}' || true
+          cat app.log
+
+      - name: Package
+        id: pkg
+        run: |
+          V=${{ steps.ver.outputs.version }}
+          ZIP=dist/mac-arm64/DiskWorks-$V-mac-arm64.zip
+          test -f "$ZIP" || ditto -c -k --keepParent dist/mac-arm64/DiskWorks.app "$ZIP"
+          cp tools/BUILD-ON-MAC.txt dist/mac-arm64/
+          echo "zip=$ZIP" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DiskWorks-${{ steps.ver.outputs.version }}-mac-arm64
+          path: |
+            ${{ steps.pkg.outputs.zip }}
+            dist/mac-arm64/BUILD-ON-MAC.txt
+
+      - name: Publish to release v${{ steps.ver.outputs.version }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V=${{ steps.ver.outputs.version }}
+          gh release view "v$V" >/dev/null 2>&1 || gh release create "v$V" --target "$GITHUB_SHA" --prerelease \
+            --title "DiskWorks $V" --notes "Automatic macOS build of $V. Windows and Linux binaries are built locally with build.py."
+          gh release upload "v$V" "${{ steps.pkg.outputs.zip }}" dist/mac-arm64/BUILD-ON-MAC.txt --clobber
