@@ -4,6 +4,12 @@ All notable changes to DiskWorks. The version number is defined once, in
 `diskworks.py` (`VERSION`), and read by the UI and `build.py`. Clicking the version
 pill in the app shows the section below that matches the running version.
 
+## 0.3.1 - 2026-10-05
+
+- **Space:** free space is now hidden by default in both the rings and the treemap, so the
+  picture shows only what is on the drive. Tick **Show free space** above the picture to
+  bring it back at a drive's root; the choice is remembered.
+
 ## 0.3.0 - 2026-10-04
 
 - **Disks: Drive health (S.M.A.R.T.).** Right-click a disk (or use its Actions strip) →

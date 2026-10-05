@@ -3,7 +3,7 @@
    largest files and the per-file-type totals of the whole scan, with trash / delete. */
 
 const SC = { root: null, path: '', node: null, map: null, sel: new Set(), known: new Map(), scanning: false, since: 0, timer: null, total: 0, capacity: null, hover: null,
-             view: 'rings', types: null, largest: null };
+             view: 'rings', types: null, largest: null, showFree: false };
 const fmtDay = t => t ? (typeof t === 'number' ? new Date(t * 1000).toLocaleDateString() : String(t).slice(0, 10)) : '';
 const tip = document.createElement('div'); tip.className = 'tooltip hidden'; document.body.appendChild(tip);
 
@@ -106,7 +106,7 @@ function wedge(r0, r1, a0, a1) {
 }
 function renderSunburst() {
   const node = SC.node; const svg = $('#sunburst');
-  const showFree = !SC.path && SC.capacity && SC.capacity > node.size;
+  const showFree = SC.showFree && !SC.path && SC.capacity && SC.capacity > node.size;
   const total = showFree ? SC.capacity : Math.max(1, node.size);
   const R0 = 62, R1 = 108, R2 = 152;
   const items = slices(node);
@@ -330,7 +330,7 @@ function renderMap() {
   ctx.clearRect(0, 0, w, h);
   MAP.rects = []; MAP.w = w; MAP.h = h;
   // at the drive root the free space is part of the picture, as in the rings
-  const showFree = !SC.path && SC.capacity && SC.capacity > node.size;
+  const showFree = SC.showFree && !SC.path && SC.capacity && SC.capacity > node.size;
   if (showFree) {
     const items = [{ kind: 'used', size: node.size }, { kind: 'free', size: SC.capacity - node.size, name: 'Free space' }];
     const rects = squarify(items, 0, 0, w, h);
@@ -396,6 +396,12 @@ function setView(v) {
   api('/api/settings', { patch: { spaceView: v } });
   if (v === 'treemap' && SC.node) { if (SC.map) renderMap(); else loadMap(); }
 }
+/* Free space is hidden unless ticked: it would otherwise dwarf what is actually on the drive. */
+$('#spcFree').addEventListener('change', e => {
+  SC.showFree = e.target.checked;
+  api('/api/settings', { patch: { spaceShowFree: SC.showFree } });
+  if (SC.node) { renderSunburst(); if (SC.view === 'treemap') renderMap(); }
+});
 $('#spcView').addEventListener('click', e => { const b = e.target.closest('button[data-view]'); if (b) setView(b.dataset.view); });
 window.addEventListener('resize', () => { if (SC.view === 'treemap' && !$('#tab-space').classList.contains('hidden') && SC.node) renderMap(); });
 
@@ -441,6 +447,7 @@ $('#spcStop').addEventListener('click', () => api('/api/space/stop', {}));
 document.addEventListener('tab', e => {
   if (e.detail !== 'space') return;
   fillSpaceTargets();
+  SC.showFree = !!S.settings?.spaceShowFree; $('#spcFree').checked = SC.showFree;
   if (S.settings?.spaceView && S.settings.spaceView !== SC.view) setView(S.settings.spaceView);
   else if (SC.view === 'treemap' && SC.node) renderMap();
   api('/api/space/events?since=0').then(ev => {
