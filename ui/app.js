@@ -138,12 +138,9 @@ async function refreshStatus() {
   if (s.error) { paintHelper({ state: 'absent', message: s.error }); return; }
   S.status = s; S.windowed = !!s.windowed;
   paintHelper(s.helper);
-  paintVersionPill(s);
+  $('#verPill').textContent = 'v' + s.version;
   $('#aboutVer').textContent = s.version;
-  paintOptions(s);
-  if (s.ui === 'update') openUpdate();
-  // the launch check found a newer version: ask once per launch ("Skip for now" asks again next time)
-  else if (s.update?.available && !S.updatePrompted && !$('#dlgUpdate').open) { S.updatePrompted = true; openUpdate(); }
+  if (s.ui) onTrayRequest(s.ui);
   if (s.fixture) $('#invInfo').textContent = 'Showing a saved inventory (fixture) — not this computer.';
   document.dispatchEvent(new CustomEvent('status', { detail: s }));
 }
@@ -192,73 +189,136 @@ async function showNotes() {
   $('#notesBody').innerHTML = `<div class="notes">${out || '<p class="hint">No release notes found.</p>'}</div>`;
   openDlg('#dlgNotes');
 }
-$('#verPill').addEventListener('click', () => (S.status?.update?.available ? openUpdate() : showNotes()));
+$('#verPill').addEventListener('click', () => { showNotes(); updCheckNow(); });
 
 /* ------------------------------------------------------------------------ */
-/* Online update (GitHub releases) and the tray / update options             */
+/* Updates and tray, to LinkTest's standard: launch check with Update now /  */
+/* Skip for now, a check every 30 min, a pulsing Update now button next to   */
+/* the version, the result at the top of What's new, and the Settings dialog */
+/* (cog) with Updates and Window.                                            */
 /* ------------------------------------------------------------------------ */
-function paintVersionPill(s) {
-  const pill = $('#verPill'); const up = s.update;
-  if (up?.available) {
-    pill.textContent = `v${s.version} · Update to ${up.latest}`;
-    pill.className = 'pill pill-warn'; pill.title = `DiskWorks ${up.latest} is available — click to see what's new and update`;
-  } else {
-    pill.textContent = 'v' + s.version; pill.className = 'pill pill-muted'; pill.title = "What's new in this version";
+const UPD = { st: null, busy: false };
+function updAgo(ts) {
+  const s = Math.max(0, Date.now() / 1000 - ts);
+  return s < 90 ? 'just now' : s < 5400 ? `${Math.round(s / 60)} min ago` : `${Math.round(s / 3600)} h ago`;
+}
+function updAvailable(st) { return !!(st && st.canInstall && st.phase === 'available'); }
+function updText(st) {
+  if (!st) return '';
+  if (UPD.busy || st.phase === 'checking') return 'Checking GitHub…';
+  if (st.phase === 'error') return `DiskWorks ${st.current}. Could not check for updates: ${st.error}`;
+  if (['downloading', 'installing', 'restarting'].includes(st.phase)) return `Updating to DiskWorks ${st.latest}…`;
+  if (st.phase === 'available') return st.canInstall
+    ? `DiskWorks ${st.latest} is available (you have ${st.current}). Updating downloads it from GitHub, checks it, replaces DiskWorks and opens it again.`
+    : `DiskWorks ${st.latest} is available (you have ${st.current}). ${st.why}`;
+  if (!st.checked) return `DiskWorks ${st.current}. Not checked yet.`;
+  return `DiskWorks ${st.current} is up to date (checked ${updAgo(st.checked)}).`;
+}
+function updNotesHtml(st) {
+  if (!st || !st.notes) return '';
+  return parseChangelog(st.notes).map(x => `<h4>Version ${esc(x.ver)}${x.date ? ' <span class="soft">· ' + esc(x.date) + '</span>' : ''}</h4>${renderNotesSection(x)}`).join('');
+}
+function updRender() {
+  const st = UPD.st; if (!st) return;
+  updRenderTop();
+  const text = updText(st), avail = updAvailable(st);
+  // Settings > Updates
+  $('#setUpdState').textContent = text;
+  $('#setUpdNotes').innerHTML = avail ? updNotesHtml(st) : '';
+  $('#setUpdNotes').classList.toggle('hidden', !avail || !st.notes);
+  $('#setUpdCheck').disabled = UPD.busy;
+  $('#setUpdGo').classList.toggle('hidden', !avail);
+  $('#setUpdAuto').checked = !!st.updateCheck;
+  // Settings > Window
+  $('#setWinBox').classList.toggle('hidden', !st.windowed);
+  $('#setTrayMin').checked = !!st.trayMinimize;
+  $('#setTrayClose').checked = !!st.trayClose;
+  $('#setTrayMin').disabled = $('#setTrayClose').disabled = !st.tray;
+  $('#setTrayNote').textContent = st.tray
+    ? 'Clicking the tray icon opens DiskWorks again' + (st.trayMenu ? '; right-click it for Update and Quit.' : '. Update and Quit are here in Settings.')
+    : (st.platform && st.platform.startsWith('mac') ? 'On a Mac, DiskWorks stays in the Dock when its window is minimized or closed.'
+      : `No system tray was found on this desktop, so minimizing and closing work as usual${st.trayWhy ? ` (${st.trayWhy})` : ''}.`);
+  // What's new: the result at the top
+  $('#notesUpdState').textContent = text;
+  $('#notesUpdCheck').disabled = UPD.busy;
+  $('#notesUpdGo').classList.toggle('hidden', !avail);
+}
+// The pulsing "Update now" next to the version, whenever an update is waiting.
+function updRenderTop() {
+  const st = UPD.st, btn = $('#updNowBtn');
+  if (btn.dataset.busy === '1') return;
+  const avail = updAvailable(st);
+  btn.hidden = !avail;
+  btn.title = avail ? `DiskWorks ${st.latest} is available (you have ${st.current}). Click to update now; DiskWorks restarts with the new version.` : '';
+}
+async function updLoad() {
+  const st = await api('/api/update');
+  if (!st.error) { UPD.st = st; updRender(); if (st.prompt) updPrompt(); }
+  return st;
+}
+async function updCheckNow() {
+  if (UPD.busy) return;
+  UPD.busy = true; updRender();
+  const r = await api('/api/update/check', {});
+  UPD.busy = false;
+  if (!r.error && !r.offline) UPD.st = r;
+  updRender();
+}
+async function updStartNow() {
+  const btn = $('#updNowBtn');
+  btn.dataset.busy = '1'; btn.classList.add('busy'); btn.textContent = 'Updating…'; btn.hidden = false;
+  for (const d of ['#dlgUpdPrompt', '#dlgSettings', '#dlgNotes']) closeDlg(d);
+  const r = await api('/api/update/install', {});
+  if (r.error) {
+    toast(r.error, 6000);
+    btn.dataset.busy = ''; btn.classList.remove('busy'); btn.textContent = 'Update now'; updRender();
+    return r;
+  }
+  openDlg('#dlgUpdate'); renderUpdate(r);
+  return r;
+}
+function updPrompt() {
+  const dlg = $('#dlgUpdPrompt'), st = UPD.st;
+  if (dlg.open || $('#dlgSettings').open || $('#dlgUpdate').open) return;
+  api('/api/update/prompted', {});   // one prompt per launch, even with several windows
+  $('#updDlgTitle').textContent = `DiskWorks ${st.latest} is available`;
+  $('#updDlgText').textContent = `You have ${st.current}.${st.size ? ` The download is ${fmtDec(st.size)}.` : ''}${st.notes ? ' What changed:' : ''}`;
+  $('#updDlgNotes').innerHTML = updNotesHtml(st);
+  $('#updDlgNotes').classList.toggle('hidden', !st.notes);
+  openDlg('#dlgUpdPrompt');
+}
+// Right after launch the check takes a few seconds: look again until it has run.
+async function updWaitLaunchCheck() {
+  for (let i = 0; i < 40; i++) {
+    const st = await updLoad();
+    if (st.error || !st.updateCheck || st.checked) return;
+    await new Promise(r => setTimeout(r, 3000));
   }
 }
-function paintOptions(s) {
-  const t = s.tray || {};
-  const cb = $('#optTray');
-  cb.checked = !!t.minimizeToTray && !!t.running; cb.disabled = !t.running;
-  $('#optTrayWhy').textContent = t.running ? '' : (s.windowed ? (t.why ? `Not available: ${t.why}.` : '') : 'Only in the DiskWorks window, not in a browser tab.');
-  $('#optUpdate').checked = S.settings.updateCheck !== false;
+function onTrayRequest(req) {
+  if (req === 'progress') { openDlg('#dlgUpdate'); api('/api/update').then(renderUpdate); }
+  else if (req === 'check') { openDlg('#dlgSettings'); updCheckNow(); }
 }
-$('#optTray').addEventListener('change', e => api('/api/settings', { patch: { minimizeToTray: e.target.checked } }).then(refreshStatus));
-$('#optUpdate').addEventListener('change', e => { S.settings.updateCheck = e.target.checked; api('/api/settings', { patch: { updateCheck: e.target.checked } }); });
-$('#optCheck').addEventListener('click', () => { closeDlg('#dlgAbout'); openUpdate(true); });
 
+/* The progress dialog after Update now (download, check, install, restart). */
 const UP = { timer: null };
-const PHASE_TEXT = { checking: 'Checking GitHub for a newer version…', downloading: 'Downloading…', installing: 'Installing…',
-  restarting: 'Restarting DiskWorks with the new version…' };
-async function openUpdate(forceCheck) {
-  openDlg('#dlgUpdate');
-  let st = await api('/api/update');
-  if (st.error) { renderUpdate({ phase: 'error', error: st.error }); return; }
-  if (forceCheck || ['idle', 'error', 'current'].includes(st.phase)) {
-    renderUpdate({ ...st, phase: 'checking' });
-    st = await api('/api/update/check', {});
-    refreshStatus();
-  }
-  renderUpdate(st);
-}
+const PHASE_TEXT = { downloading: 'Downloading…', installing: 'Installing…', restarting: 'Restarting DiskWorks with the new version…' };
 function renderUpdate(st) {
   clearTimeout(UP.timer);
-  const body = $('#upBody'); const go = $('#upInstall');
-  $('#upClose').textContent = st.phase === 'available' && st.canInstall ? 'Skip for now' : 'Close';
-  go.classList.add('hidden'); $('#upCheck').classList.toggle('hidden', ['downloading', 'installing', 'restarting', 'checking'].includes(st.phase));
-  const when = st.checked ? ` <span class="soft">· checked ${new Date(st.checked * 1000).toLocaleString()}</span>` : '';
-  if (st.phase === 'error') { body.innerHTML = `<div class="error">${esc(st.error || 'The update failed.')}</div><p class="hint">You are still on DiskWorks ${esc(st.current || S.status?.version || '')}; nothing was changed.</p>`; return; }
-  if (st.phase === 'checking') { body.innerHTML = `<p class="hint">${PHASE_TEXT.checking}</p>`; return; }
-  if (st.phase === 'current' || st.phase === 'idle') {
-    body.innerHTML = `<p><b>DiskWorks ${esc(st.current)} is the latest version.</b>${when}</p>` + (st.page ? `<p class="hint"><a href="${esc(st.page)}" target="_blank" rel="noopener">Release page</a></p>` : '');
-    return;
-  }
-  const notes = st.notes ? parseChangelog(st.notes).map(x => `<h4>Version ${esc(x.ver)}${x.date ? ' <span class="soft">· ' + esc(x.date) + '</span>' : ''}</h4>${renderNotesSection(x)}`).join('') : '<p class="hint">No release notes were found for this version.</p>';
-  const head = `<p><b>DiskWorks ${esc(st.latest)}</b> is available — you have ${esc(st.current)}.${st.size ? ` <span class="soft">Download ${fmtDec(st.size)}.</span>` : ''}${when}</p>`;
-  if (st.phase === 'available') {
-    body.innerHTML = head + `<div class="notes upnotes">${notes}</div>` + (st.canInstall ? '<p class="hint">DiskWorks downloads the new version from GitHub, checks its SHA-256, replaces itself and restarts. Your settings stay.</p>'
-      : `<div class="lockbox warn">${esc(st.why)}</div>`) + (st.page ? `<p class="hint"><a href="${esc(st.page)}" target="_blank" rel="noopener">Release page</a></p>` : '');
-    go.classList.toggle('hidden', !st.canInstall); go.disabled = false;
-    return;
-  }
-  // downloading / installing / restarting
+  const body = $('#upBody');
+  if (!st || st.error && st.phase !== 'error') { body.innerHTML = `<div class="error">${esc(st?.error || 'No update is running.')}</div>`; return; }
+  if (st.phase === 'error') { body.innerHTML = `<div class="error">${esc(st.error || 'The update failed.')}</div><p class="hint">You are still on DiskWorks ${esc(st.current)}; nothing was changed.</p>`; resetUpdBtn(); return; }
+  if (!['downloading', 'installing', 'restarting'].includes(st.phase)) { closeDlg('#dlgUpdate'); resetUpdBtn(); return; }
   const pct = st.size ? Math.min(100, 100 * (st.done || 0) / st.size) : 0;
-  body.innerHTML = head + `<div class="progress"><div class="bar" style="width:${st.phase === 'downloading' ? pct.toFixed(1) : 100}%"></div><span class="msg">${esc(PHASE_TEXT[st.phase] || st.phase)}${st.phase === 'downloading' && st.size ? ` ${fmtDec(st.done || 0)} of ${fmtDec(st.size)}` : ''}</span></div>`;
+  body.innerHTML = `<p><b>Updating to DiskWorks ${esc(st.latest)}</b> <span class="soft">(from ${esc(st.current)})</span></p>` +
+    `<div class="progress"><div class="bar" style="width:${st.phase === 'downloading' ? pct.toFixed(1) : 100}%"></div><span class="msg">${esc(PHASE_TEXT[st.phase])}${st.phase === 'downloading' && st.size ? ` ${fmtDec(st.done || 0)} of ${fmtDec(st.size)}` : ''}</span></div>` +
+    '<p class="hint">DiskWorks closes and opens again by itself when the new version is in place.</p>';
   if (st.phase === 'restarting') { waitForRestart(st.latest); return; }
   UP.timer = setTimeout(async () => renderUpdate(await api('/api/update')), 500);
 }
-/* The new version takes over this window's server address only in browser mode; in the native
-   window this page closes with the old process and the new one opens its own window. */
+function resetUpdBtn() { const b = $('#updNowBtn'); b.dataset.busy = ''; b.classList.remove('busy'); b.textContent = 'Update now'; updRender(); }
+/* In the native window this page closes with the old process and the new one opens its own
+   window; in a browser tab (server mode) the page reloads once the new version answers. */
 async function waitForRestart(latest) {
   for (let i = 0; i < 120; i++) {
     await new Promise(r => setTimeout(r, 1000));
@@ -266,18 +326,28 @@ async function waitForRestart(latest) {
     if (p.version && p.version === latest) { location.reload(); return; }
   }
 }
-$('#upInstall').addEventListener('click', async () => {
-  $('#upInstall').disabled = true;
-  const r = await api('/api/update/install', {});
-  if (r.error) { renderUpdate({ phase: 'error', error: r.error, current: S.status?.version }); return; }
-  renderUpdate(r);
-});
-$('#upCheck').addEventListener('click', () => openUpdate(true));
 async function afterUpdateNotice() {
   const from = S.settings.updatedFrom; if (!from) return;
   api('/api/settings', { patch: { updatedFrom: null } });
   delete S.settings.updatedFrom;
   if (from !== S.status?.version) { toast(`Updated from ${from} to ${S.status?.version}`, 5000); showNotes(); }
+}
+function wireUpdates() {
+  const save = async patch => { await api('/api/settings', { patch }); Object.assign(S.settings, patch); await updLoad(); };
+  $('#setUpdCheck').onclick = updCheckNow;
+  $('#notesUpdCheck').onclick = updCheckNow;
+  $('#setUpdGo').onclick = updStartNow;
+  $('#notesUpdGo').onclick = updStartNow;
+  $('#updNowBtn').onclick = updStartNow;
+  $('#setUpdAuto').onchange = e => save({ updateCheck: e.target.checked });
+  $('#setTrayMin').onchange = e => save({ trayMinimize: e.target.checked });
+  $('#setTrayClose').onchange = e => save({ trayClose: e.target.checked });
+  $('#setQuit').onclick = async () => { await api('/api/quit', {}); };
+  $('#updSkip').onclick = () => closeDlg('#dlgUpdPrompt');
+  $('#updNow').onclick = () => { closeDlg('#dlgUpdPrompt'); updStartNow(); };
+  $('#btnSettings').addEventListener('click', () => { updLoad(); openDlg('#dlgSettings'); });
+  updWaitLaunchCheck();
+  setInterval(updLoad, 60 * 1000);   // cheap: reads the result of the app's own background check
 }
 $('#btnAbout').addEventListener('click', () => openDlg('#dlgAbout'));
 
@@ -318,6 +388,7 @@ async function boot() {
   await refreshStatus();
   showTab(S.settings.lastTab || 'disks');
   document.dispatchEvent(new CustomEvent('booted'));
+  wireUpdates();
   afterUpdateNotice();
   pollLog();
   setInterval(refreshStatus, 6000);

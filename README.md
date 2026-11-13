@@ -4,7 +4,7 @@ DiskWorks is a disk and partition manager for people who would rather not open a
 terminal. It shows your drives the way Windows Disk Management does and offers the
 detailed operations of GParted, on Windows, Linux and macOS, from one window.
 
-**Status: 0.4.1** (Windows x64 and Linux x86_64 built and tested here; macOS Apple Silicon
+**Status: 0.4.2** (Windows x64 and Linux x86_64 built and tested here; macOS Apple Silicon
 builds with `./build-mac.sh`, see `MACOS.md` — not yet run on a Mac). See
 `ARCHITECTURE.md` for how it is built, `REQUIREMENTS.md` for what it must do, what is
 done and what was deliberately left out, and `CHANGELOG.md` for releases.
@@ -27,15 +27,17 @@ native window; `--browser` works with the standard library alone). Build:
 **Self-contained, online only for updates.** Everything DiskWorks needs is inside the one
 executable: the partition and filesystem tools on Linux, the Windows-side helpers,
 and the drivers it may offer to install. The only time it goes online is to check for and
-install an update from GitHub: at each launch (it then offers *Update now* or *Skip for
-now*; About turns the launch check off) and when you click *Check for updates* (About, the
-tray menu, or the version pill). No telemetry.
+install an update from GitHub: at each launch and every 30 minutes while it runs (a newer
+version is offered with *Update now* / *Skip for now*, and a pulsing *Update now* button sits
+next to the version), and when you ask (*Check for updates* in Settings, What's new, or the
+tray menu). Settings turns the automatic checks off. No telemetry.
 
 **Updates and the tray.** GitHub builds Windows, Linux and macOS binaries for every version
 (`.github/workflows/release.yml`) and publishes them on the release `v<version>`. DiskWorks
 shows what is new, downloads its own platform's binary, checks its SHA-256, replaces itself
-and restarts. While it runs, a DiskWorks icon sits in the system tray (the menu bar on a Mac);
-minimizing the window hides it there (*Minimize to tray*, on by default).
+and restarts. On Windows and Linux a DiskWorks icon sits in the system tray while it runs
+(Open / Update / Quit); minimizing the window hides it there, and closing can too. The options
+are in **Settings** (the cog next to About), to the same standard as LinkTest.
 
 **Current version:** see `CHANGELOG.md`. Once code exists the version lives once in
 `diskworks.py` (`VERSION`) and is shown in the app's header; clicking it opens the

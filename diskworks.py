@@ -27,7 +27,7 @@ import dw_fs
 import dw_inventory as di
 
 APP_NAME = "DiskWorks"
-VERSION = "0.4.1"
+VERSION = "0.4.2"
 IS_WIN = os.name == "nt"
 IS_LINUX = sys.platform.startswith("linux")
 IS_MAC = sys.platform == "darwin"
@@ -142,9 +142,15 @@ class App:
         self.helper = None                   # dw_ipc.HelperClient once started (phase B)
         self.jobs = None                     # job manager (phase C)
         self.updater = None                  # dw_update.Updater (online update, 0.4.0)
-        self.tray = None                     # dw_tray.Tray while the tray icon runs
-        self.tray_why: str | None = None     # why there is no tray icon
+        self.tray = None                     # dw_tray.Tray (windowed mode)
+        self.hidden: list = []               # windows hidden to the tray
+        self.win_state: dict = {}            # window -> its geometry state ({"maximized": bool, ...})
+        self._quitting = False
+        self.update_prompted = False         # the launch prompt was answered (once per launch, all windows)
         self.ui_request: str | None = None   # one-shot request for the page ("update" from the tray menu)
+        # 0.4.0 called the minimize setting "minimizeToTray"; LinkTest's name is "trayMinimize"
+        if "minimizeToTray" in self.settings:
+            self.settings.setdefault("trayMinimize", bool(self.settings.pop("minimizeToTray")))
         self.info("DiskWorks %s starting (%s)" % (VERSION, "fixture " + fixture if fixture else di.PLATFORM))
         threading.Thread(target=self._inventory_loop, daemon=True, name="inventory").start()
 
@@ -254,25 +260,134 @@ class App:
             self.windows.remove(win)
         except ValueError:
             pass
+        if win in self.hidden:
+            self.hidden.remove(win)
+        self.win_state.pop(win, None)
+        # The last visible window was closed while others sit in the tray: closing means quit
+        # unless "keep running in the tray" is on.
+        if (self.windows and not self._quitting and all(w in self.hidden for w in self.windows)
+                and not (self.tray_ok() and self.settings.get("trayClose"))):
+            threading.Thread(target=self.quit, daemon=True).start()
 
     def request_new_window(self) -> bool:
         if not self.windowed:
             return False
-        if self.windows:                     # a second start brings back the window hidden in the tray
-            for w in list(self.windows):
-                try:
-                    w.show()
-                    w.restore()
-                except Exception:
-                    pass
-            if self.tray:
-                self.tray.hidden.clear()
+        if self.hidden:                      # started again while in the tray: bring the window back
+            self.show_windows()
             return True
         try:
             open_native_window(self, self.url)
             return True
         except Exception:
             return False
+
+    # -- tray (LinkTest's standard: minimize / close to tray, Open / Update / Quit) --
+    def tray_ok(self) -> bool:
+        return bool(self.tray and self.tray.ok)
+
+    def start_tray(self) -> None:
+        try:
+            import dw_tray
+        except Exception:
+            return
+        t = dw_tray.Tray(self.show_windows, self.tray_update, self.quit, self.tray_update_label)
+        self.tray = t
+        if t.start():
+            t.set_title(f"{APP_NAME} {VERSION}")
+            self.info("Tray icon ready")
+        else:
+            self.info(f"No tray icon: {t.why}")
+            if self.hidden:
+                self.show_windows()
+
+    def tray_update_label(self) -> str | None:
+        up = self.updater
+        if up is None or not up.state.get("canInstall"):
+            return None
+        if up.state.get("phase") == "available":
+            return f"Update DiskWorks ({up.state.get('latest')} available)"
+        return "Update DiskWorks"
+
+    def tray_update(self) -> None:
+        """Tray menu > Update DiskWorks: install what is waiting, else check and show the result."""
+        self.show_windows()
+        up = self.updater
+        if up and up.state.get("phase") == "available":
+            try:
+                up.install()
+                self.ui_request = "progress"
+            except RuntimeError as e:
+                if self.tray:
+                    self.tray.notify(str(e))
+        else:
+            self.ui_request = "check"
+
+    def hide_window(self, win) -> None:
+        try:
+            win.hide()
+        except Exception:
+            return
+        if win not in self.hidden:
+            self.hidden.append(win)
+        if not self.settings.get("trayHintShown") and self.tray:
+            self.tray.notify("DiskWorks is still running here. Click the icon to open it again"
+                             + ("; right-click for Update and Quit." if self.tray.has_menu else "."))
+            self.settings["trayHintShown"] = True
+            self.save_settings()
+
+    def show_windows(self) -> None:
+        if not self.windowed:
+            webbrowser.open(self.url)
+            return
+        wins = list(self.hidden) or self.windows[-1:]
+        self.hidden = []
+        if not wins and self.url:
+            open_native_window(self, self.url)
+            return
+        for w in wins:
+            try:
+                w.show()
+                # Back the way it went into the tray: restore() would turn a maximized window into
+                # a normal one (and that would then be saved for the next launch).
+                if self.win_state.get(w, {}).get("maximized"):
+                    w.maximize()
+                else:
+                    w.restore()
+            except Exception:
+                pass
+
+    def on_minimized(self, win) -> None:
+        if self.tray_ok() and self.settings.get("trayMinimize", True):
+            self.hide_window(win)
+
+    def on_closing(self, win):
+        """Close to the tray (if chosen) when this is the last visible window."""
+        if self._quitting or not self.tray_ok() or not self.settings.get("trayClose"):
+            return None
+        visible = [w for w in self.windows if w not in self.hidden]
+        if visible != [win]:
+            return None
+        threading.Thread(target=self.hide_window, args=(win,), daemon=True).start()
+        return False
+
+    def quit(self) -> None:
+        """Quit for real (tray menu, Settings, the updater)."""
+        jobs = self.jobs
+        if jobs and jobs.running():
+            self.show_windows()
+            if self.tray:
+                self.tray.notify("A disk job is still running. DiskWorks will not quit in the middle of it.")
+            return
+        self._quitting = True
+        if self.windowed and self.windows:
+            for w in list(self.windows):
+                try:
+                    w.destroy()
+                except Exception:
+                    pass
+            threading.Timer(15.0, lambda: os._exit(0)).start()   # never hang an update on a stuck window
+        else:
+            self.shutdown()
 
     def watch(self) -> None:
         """Browser mode: close when the tab is gone (never while a job runs)."""
@@ -299,12 +414,6 @@ class App:
     def take_ui_request(self) -> str | None:
         req, self.ui_request = self.ui_request, None
         return req
-
-    def quit_app(self) -> None:
-        """Quit from the tray or after an update: close every window and stop the server."""
-        self.shutdown()
-        if self.server and self.windowed and not self.windows:
-            threading.Thread(target=self.server.shutdown, daemon=True).start()
 
     def shutdown(self) -> None:
         self.stop_tools()
@@ -496,7 +605,7 @@ class Handler(BaseHTTPRequestHandler):
                                                     "text": "\n".join(lines) + "\n"}))
             if p == "/api/quit":
                 self._json({"ok": True})
-                app.shutdown()
+                threading.Timer(0.3, app.quit).start()
                 return
             if app.updater and p.startswith("/api/update") and app.updater.handle_post(self, p, body):
                 return
@@ -523,8 +632,6 @@ def status_payload(app: App) -> dict:
         "inventoryError": app.inv_error, "stateDir": app.sd, "frozen": bool(getattr(sys, "frozen", False)),
         "bundle": bundle_info(),
         "update": app.updater.summary() if app.updater else None,
-        "tray": {"running": bool(app.tray and app.tray.running), "why": app.tray_why,
-                 "minimizeToTray": app.settings.get("minimizeToTray", True) is not False},
         "ui": app.take_ui_request(),
         "features": {"ops": bool(app.jobs), "image": bool(app.jobs), "access": bool(app.jobs), "speed": bool(app.jobs and app.jobs.speed), "space": bool(app.jobs and app.jobs.space),
                      "smart": bool(app.jobs and app.jobs.smart)},
@@ -640,7 +747,8 @@ def _wire_geometry_saving(app: App, win):
             g = dict(app.settings.get("window") or {})
             if not state["maximized"]:
                 w, h, x, y = win.width, win.height, win.x, win.y
-                if w >= WINDOW_MIN[0] // 2 and h >= WINDOW_MIN[1] // 2:
+                # Windows parks a minimized window at -32000,-32000: not a place to reopen at
+                if w >= WINDOW_MIN[0] // 2 and h >= WINDOW_MIN[1] // 2 and x > -30000 and y > -30000:
                     g.update({"width": int(w), "height": int(h), "x": int(x), "y": int(y)})
             g["maximized"] = state["maximized"]
             app.settings["window"] = g
@@ -689,8 +797,10 @@ def open_native_window(app: App, url: str):
     win = webview.create_window(APP_NAME, url, min_size=WINDOW_MIN, text_select=True, zoomable=False,
                                 background_color="#f3f5f9", **kw)
     win.events.closed += lambda: app.on_window_closed(win)
-    win.events.minimized += lambda: app.tray.on_minimized(win) if app.tray else None
+    win.events.closing += lambda: app.on_closing(win)      # runs first: may keep it in the tray
+    win.events.minimized += lambda: app.on_minimized(win)
     state = _wire_geometry_saving(app, win)
+    app.win_state[win] = state
 
     def on_shown():
         try:
@@ -731,16 +841,8 @@ def run_windowed(app: App, url: str, sd: str, verbose: bool) -> bool:
     webview.settings["ALLOW_DOWNLOADS"] = False
     webview.settings["OPEN_EXTERNAL_LINKS_IN_BROWSER"] = True
     open_native_window(app, url)
-    start_in_gui = None
-    try:
-        import dw_tray
-        app.tray = dw_tray.Tray(app)
-        app.tray.start_before_gui()          # Windows / macOS (pystray)
-        start_in_gui = app.tray.start_in_gui  # Linux (Qt, on pywebview's GUI thread)
-    except Exception as e:
-        app.tray_why = str(e)
-        app.info(f"No tray icon: {e}")
-    webview.start(start_in_gui, gui=gui_backend(), private_mode=False, storage_path=webview_storage_dir(sd),
+    # the tray starts once the GUI runs (Linux builds it on Qt's thread; Windows uses pystray's own)
+    webview.start(app.start_tray, gui=gui_backend(), private_mode=False, storage_path=webview_storage_dir(sd),
                   icon=icon_path(), debug=verbose)
     return True
 
@@ -813,7 +915,7 @@ def main(argv=None) -> int:
         + (["--verbose"] if ns.verbose else [])
     attach_jobs(app)
     app.updater = dw_update.Updater(app)
-    app.updater.check_at_start()
+    threading.Thread(target=app.updater.update_loop, name="update-check", daemon=True).start()
     Handler.app = app
     server = QuietServer(("127.0.0.1", ns.port), Handler)
     server.verbose = ns.verbose

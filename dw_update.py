@@ -7,9 +7,11 @@ Releases are made by .github/workflows/release.yml: one tag v<version> per versi
 and a <asset>.sha256 next to each.  A release stays a pre-release until all three
 platforms are built; only full releases are offered.
 
-The check talks to api.github.com at every launch (unless the user turns that off in About)
-and when they ask (Check for updates).  Nothing is sent but the request itself; when a newer
-version exists the page asks "Update now" or "Skip for now".  Runs in the
+To LinkTest's standard: the check talks to api.github.com right after launch and every 30
+minutes while DiskWorks runs (Settings > Updates can turn that off), and whenever the user asks.
+Nothing is sent but the request itself.  When the launch check finds a newer version the page
+asks "Update now" or "Skip for now" (once per launch, in one window); while one is waiting a
+pulsing "Update now" button sits next to the version in the header.  Runs in the
 window process with the user's rights: the binary's folder must be writable by the user.
 
 Swap per platform (the running file is never written in place):
@@ -37,6 +39,7 @@ import urllib.error
 import urllib.request
 
 REPO = "OccuviteASI/DiskWorks"
+CHECK_EVERY = 30 * 60      # while running, so the header's Update now button shows up
 API = f"https://api.github.com/repos/{REPO}/releases?per_page=30"
 RAW = f"https://raw.githubusercontent.com/{REPO}"
 IS_WIN = os.name == "nt"
@@ -182,18 +185,37 @@ class Updater:
     # -- routes ------------------------------------------------------------------
     def handle_get(self, h, path: str, q: dict) -> bool:
         if path == "/api/update":
-            h._json(self.state)
+            h._json(self.status())
             return True
         return False
 
     def handle_post(self, h, path: str, body: dict) -> bool:
         if path == "/api/update/check":
-            h._json(self.check())
+            self.check()
+            h._json(self.status())
             return True
         if path == "/api/update/install":
-            h._json(self.install())
+            self.install()
+            h._json(self.status())
+            return True
+        if path == "/api/update/prompted":
+            self.app.update_prompted = True
+            h._json({"ok": True})
             return True
         return False
+
+    def status(self) -> dict:
+        """The update state plus the Settings dialog's switches (LinkTest's /api/update/status)."""
+        app, s = self.app, self.state
+        tray = app.tray
+        return {**s,
+                "updateCheck": app.settings.get("updateCheck", True) is not False,
+                "windowed": app.windowed, "tray": app.tray_ok(), "trayMenu": bool(tray and tray.has_menu),
+                "trayWhy": tray.why if tray else "", "trayMinimize": app.settings.get("trayMinimize", True) is not False,
+                "trayClose": bool(app.settings.get("trayClose")),
+                # ask once per launch, in one window, when a check found an update
+                "prompt": bool(s["canInstall"] and s["phase"] == "available" and not app.update_prompted
+                               and app.settings.get("updateCheck", True) is not False)}
 
     def summary(self) -> dict:
         s = self.state
@@ -216,6 +238,8 @@ class Updater:
                 self.release = None
                 self.state.update({"phase": "current", "latest": rel["version"] if rel else None, "notes": "", "page": rel["page"] if rel else None})
                 self.app.info(f"Update check: {self.state['current']} is the latest version")
+                if self.app.tray:
+                    self.app.tray.refresh(badge=False)
                 return self.state
             notes = ""
             try:
@@ -227,21 +251,25 @@ class Updater:
             self.release = rel
             self.state.update({"phase": "available", "latest": rel["version"], "notes": notes, "size": rel["size"], "page": rel["page"]})
             self.app.info(f"Update available: DiskWorks {rel['version']} ({(rel['size'] or 0) / 1e6:.0f} MB)")
+            if self.app.tray:
+                self.app.tray.refresh(badge=True)
         except (urllib.error.URLError, OSError, ValueError) as e:
             reason = getattr(e, "reason", None) or e
             self.state.update({"phase": "error", "error": f"Could not reach GitHub to check for updates: {reason}"})
         return self.state
 
-    def check_at_start(self) -> None:
-        """Every launch, unless "Check for updates when DiskWorks starts" is off (About).
-        A newer version makes the page offer "Update now" / "Skip for now"."""
-        if self.app.settings.get("updateCheck", True) is False or os.environ.get("DISKWORKS_NO_UPDATE_CHECK"):
+    def update_loop(self) -> None:
+        """Check right after launch (the page then offers Update now / Skip for now) and every 30
+        minutes after that (the header's Update now button). Settings > Updates can turn it off."""
+        if os.environ.get("DISKWORKS_NO_UPDATE_CHECK"):
             return
-        def run():
-            time.sleep(3)          # let the window come up first
-            if not self.app.stop.is_set():
+        if self.app.stop.wait(3):          # let the window come up first
+            return
+        while not self.app.stop.is_set():
+            if self.app.settings.get("updateCheck", True) is not False and self.state["phase"] in ("idle", "current", "available", "error"):
                 self.check()
-        threading.Thread(target=run, daemon=True, name="update-check").start()
+            if self.app.stop.wait(CHECK_EVERY):
+                return
 
     # -- install -----------------------------------------------------------------
     def install(self) -> dict:
@@ -363,4 +391,4 @@ class Updater:
                          cwd=os.path.dirname(target) if not IS_MAC else None, close_fds=True, **kw)
         self.app.info("Restarting into the new version")
         time.sleep(0.8)                     # let the UI see "restarting" before the server goes
-        self.app.quit_app()
+        self.app.quit()

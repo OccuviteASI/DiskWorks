@@ -4,6 +4,27 @@ All notable changes to DiskWorks. The version number is defined once, in
 `diskworks.py` (`VERSION`), and read by the UI and `build.py`. Clicking the version
 pill in the app shows the section below that matches the running version.
 
+## 0.4.2 - 2026-11-13
+
+Updates and the tray now follow the same standard as LinkTest.
+- **Settings** (the new cog button next to About) holds the options, instead of About:
+  *Updates* (the state, what changed, *Check for updates*, *Update DiskWorks*, and *Check for
+  updates when DiskWorks starts and every 30 minutes*) and *Window* (*Minimize to the tray*,
+  *Keep running in the tray when the window is closed*, and *Quit DiskWorks*).
+- **Update now** button next to the version, pulsing brighter/darker whenever an update is
+  waiting; one click updates (it turns into "Updating…"). DiskWorks now checks GitHub every
+  30 minutes while it runs as well as at launch, so the button shows up soon after a release.
+- Clicking the version opens What's new and checks for updates straight away; the result
+  sits at the top with *Check for updates* and *Update now*.
+- The launch prompt (*Update now* / *Skip for now*) appears once per launch, in one window,
+  even after a reload.
+- **Close to tray** (optional, off by default): closing the window keeps DiskWorks running in
+  the tray. A window comes back from the tray the way it went in, maximized or not, and a
+  minimized window's parked position (-32000) is no longer saved.
+- The tray menu is *Open DiskWorks*, *Update DiskWorks* (with the new version when one is
+  waiting) and *Quit DiskWorks*; the icon gets an amber dot while an update waits. macOS has
+  no tray icon: the Dock keeps DiskWorks, as with LinkTest.
+
 ## 0.4.1 - 2026-11-13
 
 - **Fix (Linux, macOS):** a window that reopened where a disconnected monitor used to be

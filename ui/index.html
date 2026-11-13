@@ -19,7 +19,9 @@
   </div>
   <div class="top-right">
     <button id="helperPill" class="pill pill-muted" title="Changing disks needs administrator rights">Checking…</button>
-    <button id="verPill" class="pill pill-muted" title="What's new in this version">v…</button>
+    <button id="updNowBtn" class="updnow" hidden>Update now</button>
+    <button id="verPill" class="pill pill-muted verpill" title="What's new, and check for updates">v…</button>
+    <button id="btnSettings" class="icon-btn" title="Settings" aria-label="Settings"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6a.5.5 0 0 0 .1-.6l-2-3.5a.5.5 0 0 0-.6-.2l-2.5 1a7.4 7.4 0 0 0-1.7-1l-.4-2.6a.5.5 0 0 0-.5-.4h-4a.5.5 0 0 0-.5.4l-.4 2.6a7.4 7.4 0 0 0-1.7 1l-2.5-1a.5.5 0 0 0-.6.2l-2 3.5a.5.5 0 0 0 .1.6L4.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6a.5.5 0 0 0-.1.6l2 3.5a.5.5 0 0 0 .6.2l2.5-1a7.4 7.4 0 0 0 1.7 1l.4 2.6a.5.5 0 0 0 .5.4h4a.5.5 0 0 0 .5-.4l.4-2.6a7.4 7.4 0 0 0 1.7-1l2.5 1a.5.5 0 0 0 .6-.2l2-3.5a.5.5 0 0 0-.1-.6L19.4 13zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z"/></svg></button>
     <button id="btnAbout" class="icon-btn" title="About DiskWorks">?</button>
   </div>
 </header>
@@ -225,7 +227,10 @@
 <!-- ================================================================== Dialogs -->
 <dialog id="dlgNotes" class="dlg">
   <div class="dlg-head"><h3>What's new</h3><button class="icon-btn" data-close>✕</button></div>
-  <div class="dlg-body" id="notesBody"></div>
+  <div class="dlg-body">
+    <div class="notes-upd"><span id="notesUpdState" class="hint"></span><span class="row upd-btns"><button id="notesUpdCheck" class="btn small">Check for updates</button><button id="notesUpdGo" class="btn small primary hidden">Update now</button></span></div>
+    <div id="notesBody"></div>
+  </div>
 </dialog>
 
 <dialog id="dlgAbout" class="dlg">
@@ -239,14 +244,7 @@
     <h4>Space</h4><p>Shows what fills a drive as rings or as a treemap you can click into, lists the largest files and the totals per file type, and lets you move files to the Recycle Bin / Trash or delete them.</p>
     <h4>Log</h4><p>Every command the app ran, with its output.</p>
     <h4>Administrator rights</h4><p>Looking never needs them. The first change asks once (Windows UAC / Linux password / macOS administrator prompt) and starts a small helper process that does the privileged work for the rest of the session. The window itself never runs as administrator.</p>
-    <h4>Options</h4>
-    <div class="opts">
-      <label class="chk"><input type="checkbox" id="optTray"> Minimize to the system tray <span class="hint">(the menu bar on a Mac) — the icon brings the window back</span></label>
-      <span class="hint" id="optTrayWhy"></span>
-      <label class="chk"><input type="checkbox" id="optUpdate"> Check for updates when DiskWorks starts <span class="hint">(asks GitHub, sends nothing else; a newer version is offered with Update now / Skip for now)</span></label>
-      <div><button class="btn small" id="optCheck">Check for updates now…</button></div>
-    </div>
-    <p class="hint">Version <span id="aboutVer"></span>. Everything DiskWorks needs is bundled. It only goes online when you check for or install an update.</p>
+    <p class="hint">Version <span id="aboutVer"></span>. Everything DiskWorks needs is bundled; it only goes online to check for and install updates (the cog button: Settings).</p>
   </div>
 </dialog>
 
@@ -262,13 +260,39 @@
   <div class="dlg-foot"><span class="grow"></span><button class="btn" data-close>Cancel</button><button id="cfOk" class="btn danger" disabled>Continue</button></div>
 </dialog>
 
+<dialog id="dlgSettings" class="dlg">
+  <div class="dlg-head"><h3>Settings</h3><button class="icon-btn" data-close>✕</button></div>
+  <div class="dlg-body settings">
+    <h4>Updates</h4>
+    <p id="setUpdState" class="hint">Checking…</p>
+    <div id="setUpdNotes" class="notes upnotes hidden"></div>
+    <div class="row wrap upd-btns"><button id="setUpdCheck" class="btn small">Check for updates</button><button id="setUpdGo" class="btn small primary hidden">Update DiskWorks</button></div>
+    <div class="opts"><label class="chk"><input type="checkbox" id="setUpdAuto"> Check for updates when DiskWorks starts and every 30 minutes</label></div>
+    <div id="setWinBox">
+      <h4>Window</h4>
+      <div class="opts">
+        <label class="chk"><input type="checkbox" id="setTrayMin"> Minimize to the tray</label>
+        <label class="chk"><input type="checkbox" id="setTrayClose"> Keep running in the tray when the window is closed</label>
+      </div>
+      <p class="hint" id="setTrayNote"></p>
+      <button id="setQuit" class="btn small">Quit DiskWorks</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="dlgUpdPrompt" class="dlg">
+  <div class="dlg-head"><h3 id="updDlgTitle">A new version of DiskWorks is available</h3></div>
+  <div class="dlg-body">
+    <p id="updDlgText"></p>
+    <div id="updDlgNotes" class="notes upnotes hidden"></div>
+    <p class="hint">Updating downloads the new version from GitHub, checks it, closes DiskWorks and opens it again. A disk job in progress blocks the update.</p>
+  </div>
+  <div class="dlg-foot"><span class="grow"></span><button id="updSkip" class="btn">Skip for now</button><button id="updNow" class="btn primary">Update now</button></div>
+</dialog>
+
 <dialog id="dlgUpdate" class="dlg">
-  <div class="dlg-head"><h3>Update DiskWorks</h3><button class="icon-btn" data-close>✕</button></div>
+  <div class="dlg-head"><h3>Updating DiskWorks</h3><button class="icon-btn" data-close>✕</button></div>
   <div class="dlg-body" id="upBody"></div>
-  <div class="dlg-foot"><span class="grow"></span>
-    <button id="upCheck" class="btn">Check again</button>
-    <button id="upClose" class="btn" data-close>Close</button>
-    <button id="upInstall" class="btn primary hidden">Update now</button></div>
 </dialog>
 
 <dialog id="dlgHealth" class="dlg wide">
