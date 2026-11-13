@@ -4,6 +4,13 @@ All notable changes to DiskWorks. The version number is defined once, in
 `diskworks.py` (`VERSION`), and read by the UI and `build.py`. Clicking the version
 pill in the app shows the section below that matches the running version.
 
+## 0.4.4 - 2026-11-13
+
+- **Fix:** switching tabs no longer nudges the page sideways. Tabs long enough to scroll
+  (Disks, Speed) showed a scrollbar and the others did not, so the page was 15 pixels
+  narrower on some tabs than on others. The scrollbar's space is now always kept, so every
+  tab lines up the same.
+
 ## 0.4.3 - 2026-11-13
 
 - **Fix (Windows update):** the previous version's `DiskWorks.old.exe` was left beside the
