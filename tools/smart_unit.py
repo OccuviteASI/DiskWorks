@@ -6,6 +6,10 @@ import json
 import os
 import sys
 
+# Windows consoles default to a legacy code page; print the test text as UTF-8 anywhere
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, here)
 import dw_smart  # noqa: E402

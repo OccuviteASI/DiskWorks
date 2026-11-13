@@ -43,6 +43,8 @@ jobs:
   windows:
     needs: release
     runs-on: windows-latest
+    env:
+      PYTHONUTF8: "1"
     defaults:
       run:
         shell: bash
