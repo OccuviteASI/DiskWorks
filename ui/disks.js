@@ -517,10 +517,9 @@ async function loadHealth(refresh) {
   if (r.locked) {
     $('#hlBody').innerHTML = `<div class="lockbox warn">${lockIcon('closed')} ${esc(r.message)}</div><p class="hint">Reading health data talks to the drive directly, which the operating system only allows an administrator to do. Nothing is changed on the disk.</p><button class="btn primary" id="hlUnlock">Unlock and read</button>`;
     $('#hlUnlock').addEventListener('click', async () => {
-      $('#hlUnlock').disabled = true; paintHelper({ state: 'starting' });
-      const u = await api('/api/helper/start', {});
-      await refreshStatus();
-      if (u.error) { toast(u.error, 5000); $('#hlUnlock').disabled = false; return; }
+      $('#hlUnlock').disabled = true; $('#hlUnlock').textContent = 'Waiting for permission…';
+      const u = await unlockAndWait();   // the data can only be read once the helper is ready
+      if (!u.ok) { toast(u.message, 5000); $('#hlUnlock').disabled = false; $('#hlUnlock').textContent = 'Unlock and read'; return; }
       $('#hlBody').innerHTML = '<p class="hint">Reading S.M.A.R.T. data…</p>';
       loadHealth(true);
     });

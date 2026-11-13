@@ -27,7 +27,7 @@ import dw_fs
 import dw_inventory as di
 
 APP_NAME = "DiskWorks"
-VERSION = "0.4.4"
+VERSION = "0.4.5"
 IS_WIN = os.name == "nt"
 IS_LINUX = sys.platform.startswith("linux")
 IS_MAC = sys.platform == "darwin"

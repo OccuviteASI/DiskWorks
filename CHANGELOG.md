@@ -4,6 +4,16 @@ All notable changes to DiskWorks. The version number is defined once, in
 `diskworks.py` (`VERSION`), and read by the UI and `build.py`. Clicking the version
 pill in the app shows the section below that matches the running version.
 
+## 0.4.5 - 2026-11-13
+
+- **Fix (Drive health):** *Unlock and read* now shows the health data after you allow the
+  administrator prompt. It asked for the data before the unlocked helper had finished
+  starting, found DiskWorks still locked and showed *Unlock and read* again, so a second
+  click was needed. It now waits until the unlock has really finished (the button says
+  "Waiting for permission…" meanwhile) and says so if the prompt was cancelled.
+- The *Locked · Unlock* pill turns to *Unlocked* as soon as the unlock finishes, instead of
+  up to six seconds later.
+
 ## 0.4.4 - 2026-11-13
 
 - **Fix:** switching tabs no longer nudges the page sideways. Tabs long enough to scroll

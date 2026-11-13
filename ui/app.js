@@ -144,13 +144,28 @@ async function refreshStatus() {
   if (s.fixture) $('#invInfo').textContent = 'Showing a saved inventory (fixture) — not this computer.';
   document.dispatchEvent(new CustomEvent('status', { detail: s }));
 }
-$('#helperPill').addEventListener('click', async () => {
-  const st = S.status?.helper?.state;
-  if (st === 'ready') { toast('Already unlocked for this session'); return; }
+/* Start the privileged helper and wait until it is really there: the administrator prompt
+   (UAC / pkexec / macOS) and the helper's start-up take a few seconds after /api/helper/start
+   returns. Resolves {ok: true} when ready, else {ok: false, message}. */
+async function unlockAndWait(timeoutMs = 300000) {
+  if (S.status?.helper?.state === 'ready') return { ok: true };
   paintHelper({ state: 'starting' });
   const r = await api('/api/helper/start', {});
-  if (r.error) { toast(r.error, 5000); }
-  await refreshStatus();
+  if (r.error) { await refreshStatus(); return { ok: false, message: r.error }; }
+  const t0 = Date.now();
+  while (Date.now() - t0 < timeoutMs) {
+    await refreshStatus();
+    const h = S.status?.helper || {};
+    if (h.state === 'ready') return { ok: true };
+    if (h.state === 'failed' || h.state === 'absent') return { ok: false, message: h.message || 'Unlock was cancelled.' };
+    await new Promise(res => setTimeout(res, 500));
+  }
+  return { ok: false, message: 'Unlocking took too long. Try again.' };
+}
+$('#helperPill').addEventListener('click', async () => {
+  if (S.status?.helper?.state === 'ready') { toast('Already unlocked for this session'); return; }
+  const r = await unlockAndWait();
+  if (!r.ok) toast(r.message, 5000);
 });
 
 /* Release notes: the section of CHANGELOG.md for the running version, others collapsed. */
