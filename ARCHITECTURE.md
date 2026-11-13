@@ -28,6 +28,11 @@ still planned is marked in `REQUIREMENTS.md`. Open questions live in §13.
  |-- Jobs ............... one Job at a time (apply queue, image write/backup/restore,
  |                        access ladder); the Job talks to the helper and appends
  |                        progress to an EventLog the UI polls
+ |-- Tray ............... pystray icon (own thread; macOS: run_detached on the main loop),
+ |                        hides / shows the window, menu = open, status, minimize-to-tray,
+ |                        update, quit (dw_tray.py, 0.4.0)
+ |-- Updater ............ on demand: GitHub releases -> download -> SHA-256 -> swap ->
+ |                        restart with --after-update <pid> (dw_update.py, 0.4.0)
  `-- Helper ............. `DiskWorks --helper <address> [--token-file <path>]`
                           started ONCE per session via ShellExecute "runas" (Windows),
                           pkexec (Linux) or osascript "with administrator privileges"
@@ -113,6 +118,8 @@ did and did not run.
 | `dw_speed.py` | Speed tab (0.2.0), window process: `UnbufferedFile` (Windows `FILE_FLAG_NO_BUFFERING|WRITE_THROUGH` via ctypes, Linux `O_DIRECT`, macOS `F_NOCACHE` + `F_FULLFSYNC`), `SpeedTest` (targets = mounted volumes with free space, write-then-read loop over a `.diskworks-speedtest.tmp` file placed by `writable_folder_on()` in the first writable folder on that volume (Temp, home, root, `DiskWorks-speedtest`; the root of the Windows system drive refuses normal users, D-034), 1 MiB-aligned `mmap` blocks, `tick` / `phase` / `run` / `done` events, MB = 10^6). |
 | `dw_space.py` | Space tab (0.2.0, treemap data 0.3.0), window process: `Node` tree from `os.scandir` (no symlinks / reparse points, top 40 files per folder, the rest aggregated, progress events), per-extension totals and a 1000-entry largest-files heap over the whole scan, `SpaceScan` (targets = mounted volumes + home; `/api/space/tree` with `depth`, `min` share pruning for the treemap; `/api/space/types`, `/api/space/largest`; delete to Recycle Bin / Trash via `Microsoft.VisualBasic.FileIO` / Finder / `gio trash` or the freedesktop spec, permanent delete with the critical-path guard; reveal in Explorer / Finder / xdg-open). |
 | `dw_smart.py` | Drive health (0.3.0), both processes: helper verbs `smart` / `smart_selftest` run `smartctl -j` (bundled or system; `-d sat` retries for USB) and fall back to Windows storage reliability counters + the WMI failure-prediction ATA block (`parse_ata_block`) or macOS `diskutil` SMARTStatus; `normalize_smartctl` + `assess` turn any source into one report (verdict, reasons, tiles, attributes, NVMe log, self-tests); window-side `Smart` caches a report per disk and serves `/api/smart`, `/api/smart/all`, `/api/smart/selftest` (D-037). |
+| `dw_update.py` | Online update (0.4.0), window process: `pick_release` (newest full release carrying `asset_name(ver, platform_tag())`), `notes_between` (CHANGELOG sections at the release's tag), `Updater` routes `GET /api/update`, `POST /api/update/check`, `POST /api/update/install` (download beside the binary, SHA-256 from `<asset>.sha256` or the asset digest, swap per platform, `updatedFrom` setting, restart `--after-update <pid>` with the same launch mode and `PYINSTALLER_RESET_ENVIRONMENT`), `check_at_start` (every launch unless turned off; the page then prompts Update now / Skip for now), `cleanup_after_update` / `wait_for_exit` at start (D-040). |
+| `dw_tray.py` | Tray icon (0.4.0): Pillow-drawn logo with an update dot, pystray menu (Open, status, Minimize to tray, Check for updates / Update to, Quit), hide-on-minimize through pywebview's `minimized` event, Linux tray detection before importing pystray (D-041). |
 | `dw_linux.py` | Linux backend: `lsblk -J -b -O` + `/sys` parsing, `sfdisk` / `sgdisk` script building, `udisksctl` / `mount` / `umount`, `findmnt` / holders / `/proc/swaps` busy checks, `/proc/filesystems` + `modprobe -n` ladder, `BLKRRPART` ioctl (fallback `blockdev --rereadpt`) / `udevadm settle`, then a kernel-vs-table partition-count check with `partx -u` / `partprobe` when they differ (D-035), live-boot detection. |
 | `dw_image.py` | Imaging, both sides: source inspection (hybrid MBR/GPT, compression by magic, ISO / Windows media via pycdlib, fixed VHD footer, DiskWorks manifest), decompressors (`gzip`, `lzma`, `bz2`, `compression.zstd`), the raw copy loops (1 MiB `mmap` buffers, write-through, per-block blake2b for read-back verify, zero-block skipping → sparse or zstd output, JSON manifest), `ImageJobs` routes. Windows ISO mode is not in 0.1.0. |
 | `dw_access.py` | The three ladders (§8) evaluated without side effects, WSL attach / detach, installed-driver detection (service key + `GetVolumeInformationW` names), drive-letter assignment, Linux mount / unmount (udisks2 first when the helper is not up), macOS `diskutil` / FUSE mounts, the commercial-driver `info` rungs (name + website, never installed), the **7-Zip read-only browser** (`browse` / `copyout` helper verbs, partition device or temp-image source, `parse_slt`), bookkeeping of what DiskWorks opened. Driver install offers are still 'later'. |
@@ -170,6 +177,7 @@ from LinkTest:
 | `/api/speed/targets`, `/api/speed/start {root, sizeMB, block, loop}`, `/api/speed/stop`, `/api/speed/events?since`, `/api/speed/state` | GET / POST | Speed test (window process, no helper) |
 | `/api/space/targets`, `/api/space/scan {root}`, `/api/space/stop`, `/api/space/events?since`, `/api/space/tree?path&depth[&min]`, `/api/space/types`, `/api/space/largest?n`, `/api/space/delete {paths, mode}`, `/api/space/reveal {path}` | GET / POST | Space scan and deletion (window process, no helper); `min` = share below which the treemap's children are summed instead of listed |
 | `/api/smart?disk[&refresh=1]`, `/api/smart/all`, `/api/smart/selftest {disk, kind}` | GET / POST | Drive health report for one disk (`{locked: true}` before Unlock; cached 2 min), the cached summaries for the chips, start a short / long self-test (D-037) |
+| `/api/update`, `/api/update/check`, `/api/update/install` | GET / POST | Online update state (`phase` idle / checking / current / available / downloading / installing / restarting / error, `latest`, `notes`, `size`, `done`, `canInstall` + `why`), check GitHub, download + verify + swap + restart (D-040). `/api/status` carries `update` (summary), `tray` (`running`, `why`, `minimizeToTray`) and a one-shot `ui: "update"` from the tray menu |
 | `/api/access/driver {name}` | POST | Install a bundled driver after the explicit yes (job) — not in 0.1.0 |
 | `/api/image/inspect {path}` | POST | Source inspection: kind, size, hybrid table, Windows media, compression |
 | `/api/image/targets` | GET | Disks eligible for writing (removable first; `all` includes fixed non-boot disks) |
@@ -519,7 +527,11 @@ build-mac.sh  (on the Mac: xcode-select gate -> .venv -> pip -r requirements.txt
       NSHighResolutionCapable, NSRemovableVolumesUsageDescription; codesign --force --deep -s -)
    -> dist/mac-arm64/DiskWorks-<ver>-mac-arm64.zip (ditto -c -k --keepParent)
 tools/pack_source.py -> dist/DiskWorks-src-<ver>.zip (the tree without dist/, bin/, caches)
-.github/workflows/build-mac.yml  (GitHub, macos-14 Apple Silicon, every push to main; 0.3.3)
+.github/workflows/release.yml  (GitHub, every push to main; 0.4.0, was build-mac.yml in 0.3.3)
+   release (pre-release v<ver>) -> windows-latest | ubuntu-24.04 | macos-14, each: unit checks,
+   build, headless start check, upload <asset> + <asset>.sha256 -> publish (full release, latest)
+   assets: DiskWorks-<ver>-win64.exe, DiskWorks-<ver>-linux-x86_64, DiskWorks-<ver>-mac-arm64.zip
+   the in-app updater (dw_update.py) reads only full releases (D-040)
    setup-python 3.14 -> mac_unit.py + smart_unit.py -> build-mac.sh -> headless start check
    -> release v<ver>: DiskWorks-<ver>-mac-arm64.zip + BUILD-ON-MAC.txt (and a workflow artifact)
 build.py on Windows / Linux, after its own build (skip with --no-mac):

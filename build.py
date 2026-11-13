@@ -10,7 +10,7 @@
     ./build-mac.sh               macOS: venv + deps + DiskWorks.app (see MACOS.md)
 
 macOS from Windows / Linux: PyInstaller cannot build a Mac app here, so the GitHub
-workflow .github/workflows/build-mac.yml builds DiskWorks.app on an Apple Silicon runner
+workflow .github/workflows/release.yml builds all three platforms on GitHub, DiskWorks.app on an Apple Silicon runner,
 for every push to main and attaches it to the release v<version>.  After a Windows or
 Linux build this script fills dist/mac-arm64/ with that app when it exists (plain HTTPS
 download, the repository is public), and always with the source kit and
@@ -116,10 +116,17 @@ def pyinstaller_cmd(console: bool, onedir: bool, binaries: list[str]) -> list[st
            "--hidden-import", "dw_jobs", "--hidden-import", "dw_ops_exec", "--hidden-import", "dw_image",
            "--hidden-import", "dw_access", "--hidden-import", "dw_helper", "--hidden-import", "dw_ipc",
            "--hidden-import", "dw_speed", "--hidden-import", "dw_space", "--hidden-import", "dw_smart",
+           "--hidden-import", "dw_update", "--hidden-import", "dw_tray",
+           "--hidden-import", "PIL.Image", "--hidden-import", "PIL.ImageDraw",
            "--hidden-import", "dw_win" if WINDOWS else "dw_linux",
            "--exclude-module", "tkinter", "--exclude-module", "unittest",
            "--exclude-module", "webview.platforms.cef", "--exclude-module", "webview.platforms.android",
            "--exclude-module", "webview.platforms.cocoa", "--exclude-module", "webview.platforms.mshtml"]
+    if not LINUX:   # the tray: pystray picks its backend at run time, so name it (Linux uses Qt's tray)
+        cmd += ["--hidden-import", "pystray", "--hidden-import", "pystray._base", "--hidden-import", "pystray._util",
+                "--hidden-import", "pystray._win32" if WINDOWS else "pystray._darwin"]
+    else:
+        cmd += ["--exclude-module", "pystray", "--exclude-module", "Xlib"]
     for b in binaries:
         # keep each tool's folder under bin/<tag>/ (7zip/, smartmontools/, tools/)
         sub = os.path.relpath(os.path.dirname(b), os.path.join(HERE, "bin", TAG))
@@ -269,7 +276,7 @@ def mac_kit() -> None:
             pass
         code = getattr(e, "code", None)
         why = "not published yet (the Mac build runs on GitHub after you push to main; rerun build.py when it has finished)" if code == 404 else str(e)
-        print(f"macOS: app for {ver} {why}.\n       https://github.com/{REPO}/actions/workflows/build-mac.yml")
+        print(f"macOS: app for {ver} {why}.\n       https://github.com/{REPO}/actions/workflows/release.yml")
     print(f"macOS: source kit + instructions in {dest} (see BUILD-ON-MAC.txt)")
 
 

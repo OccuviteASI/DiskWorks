@@ -4,10 +4,36 @@ All notable changes to DiskWorks. The version number is defined once, in
 `diskworks.py` (`VERSION`), and read by the UI and `build.py`. Clicking the version
 pill in the app shows the section below that matches the running version.
 
+## 0.4.0 - 2026-11-13
+
+- **Update DiskWorks online.** Every time DiskWorks starts it asks GitHub for the newest
+  release; when there is one it shows what changed since your version and asks **Update
+  now** or **Skip for now** (skipping asks again at the next launch). *Check for updates*
+  (About, the tray icon's menu, or the version pill) does the same on demand. *Update now*
+  downloads this platform's build, checks its SHA-256 against the
+  one published with it, puts it in place of the running DiskWorks and restarts into it; the
+  release notes open after the restart. Nothing is changed if the download or the check
+  fails. A disk job in progress blocks the update. When an update is waiting, the version
+  pill reads *Update to …* and the tray icon gets an amber dot. The launch check can be
+  turned off in About (*Check for updates when DiskWorks starts*). Running from source, it
+  tells you to `git pull` instead.
+- **System tray.** A DiskWorks icon in the tray (the menu bar on a Mac) while it runs, like
+  SNMPathy's: *Open DiskWorks*, a status line (version, unlocked, a running job, an update),
+  *Minimize to tray*, *Check for updates… / Update to …*, *Quit DiskWorks*. With
+  *Minimize to tray* on (the default, also in About), minimizing the window hides it into the
+  tray; clicking the icon or starting DiskWorks again brings it back. Quit refuses while a
+  disk job runs. On a Linux desktop without a tray (GNOME without the AppIndicator
+  extension) there is no icon and minimizing works as before.
+- **Builds for all three platforms on GitHub.** `.github/workflows/release.yml` (replaces
+  `build-mac.yml`) builds Windows, Linux and macOS for every push to `main`, runs the unit
+  checks and a headless start on each, and publishes `DiskWorks-<v>-win64.exe`,
+  `DiskWorks-<v>-linux-x86_64` and `DiskWorks-<v>-mac-arm64.zip` with `.sha256` files on
+  the release `v<v>`, which becomes the latest release once all three are in.
+
 ## 0.3.3 - 2026-10-05
 
 - **macOS build alongside every build.** PyInstaller cannot make a Mac app on Windows or
-  Linux, so a GitHub workflow (`.github/workflows/build-mac.yml`) now builds
+  Linux, so a GitHub workflow (`.github/workflows/build-mac.yml`, now `release.yml`) now builds
   `DiskWorks.app` on an Apple Silicon Mac runner for every push to `main`: it runs the
   macOS unit checks, builds with `build-mac.sh`, starts the app headless to check it, and
   attaches `DiskWorks-<version>-mac-arm64.zip` to the release `v<version>`.

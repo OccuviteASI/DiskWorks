@@ -8,3 +8,6 @@ PySide6==6.11.2 ; sys_platform == "linux"
 pyinstaller>=6.22
 pycdlib>=1.14
 pyfatfs>=1.1
+# tray icon: pystray on Windows / macOS (menu bar); Linux uses Qt's own tray. Pillow draws the icon
+pystray>=0.19.5 ; sys_platform != "linux"
+Pillow>=11.0

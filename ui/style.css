@@ -352,3 +352,9 @@ details.card.sub .tablewrap { margin-top: 10px; max-height: 420px; }
 .sunwrap circle.hub.up { cursor: pointer; }
 .sunwrap circle.hub.up:hover { fill: var(--accent-soft); }
 .suncenter .uparrow { display: block; color: var(--accent); font-size: 16px; line-height: 1; margin-bottom: 2px; }
+
+/* about: options; update dialog */
+.opts { display: grid; gap: 8px; margin: 4px 0 12px; }
+.opts .chk { font-size: 14px; }
+.upnotes { max-height: 340px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; padding: 4px 14px; margin: 8px 0; }
+#dlgUpdate .progress { margin-top: 12px; }

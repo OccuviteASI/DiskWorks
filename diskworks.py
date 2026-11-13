@@ -27,7 +27,7 @@ import dw_fs
 import dw_inventory as di
 
 APP_NAME = "DiskWorks"
-VERSION = "0.3.3"
+VERSION = "0.4.0"
 IS_WIN = os.name == "nt"
 IS_LINUX = sys.platform.startswith("linux")
 IS_MAC = sys.platform == "darwin"
@@ -141,6 +141,10 @@ class App:
         self.last_client_poll = time.time()  # inventory refreshes pause when no window is watching
         self.helper = None                   # dw_ipc.HelperClient once started (phase B)
         self.jobs = None                     # job manager (phase C)
+        self.updater = None                  # dw_update.Updater (online update, 0.4.0)
+        self.tray = None                     # dw_tray.Tray while the tray icon runs
+        self.tray_why: str | None = None     # why there is no tray icon
+        self.ui_request: str | None = None   # one-shot request for the page ("update" from the tray menu)
         self.info("DiskWorks %s starting (%s)" % (VERSION, "fixture " + fixture if fixture else di.PLATFORM))
         threading.Thread(target=self._inventory_loop, daemon=True, name="inventory").start()
 
@@ -254,6 +258,16 @@ class App:
     def request_new_window(self) -> bool:
         if not self.windowed:
             return False
+        if self.windows:                     # a second start brings back the window hidden in the tray
+            for w in list(self.windows):
+                try:
+                    w.show()
+                    w.restore()
+                except Exception:
+                    pass
+            if self.tray:
+                self.tray.hidden.clear()
+            return True
         try:
             open_native_window(self, self.url)
             return True
@@ -282,8 +296,20 @@ class App:
         except Exception:
             pass
 
+    def take_ui_request(self) -> str | None:
+        req, self.ui_request = self.ui_request, None
+        return req
+
+    def quit_app(self) -> None:
+        """Quit from the tray or after an update: close every window and stop the server."""
+        self.shutdown()
+        if self.server and self.windowed and not self.windows:
+            threading.Thread(target=self.server.shutdown, daemon=True).start()
+
     def shutdown(self) -> None:
         self.stop_tools()
+        if self.tray:
+            self.tray.stop()
         for w in list(self.windows):
             try:
                 w.destroy()
@@ -414,6 +440,8 @@ class Handler(BaseHTTPRequestHandler):
             if p == "/api/fs":
                 return self._json({"fs": dw_fs.FS, "choices": dw_fs.FORMAT_CHOICES.get(di.PLATFORM, []),
                                    "gptTypes": dw_fs.GPT_TYPES, "mbrTypes": {str(k): v for k, v in dw_fs.MBR_TYPES.items()}})
+            if app.updater and p.startswith("/api/update") and app.updater.handle_get(self, p, q):
+                return
             if app.jobs and p.startswith("/api/"):
                 handled = app.jobs.handle_get(self, p, q)
                 if handled:
@@ -470,6 +498,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"ok": True})
                 app.shutdown()
                 return
+            if app.updater and p.startswith("/api/update") and app.updater.handle_post(self, p, body):
+                return
             if app.jobs and p.startswith("/api/"):
                 handled = app.jobs.handle_post(self, p, body)
                 if handled:
@@ -492,6 +522,10 @@ def status_payload(app: App) -> dict:
         "isAdmin": is_admin(), "fixture": app.fixture, "helper": helper,
         "inventoryError": app.inv_error, "stateDir": app.sd, "frozen": bool(getattr(sys, "frozen", False)),
         "bundle": bundle_info(),
+        "update": app.updater.summary() if app.updater else None,
+        "tray": {"running": bool(app.tray and app.tray.running), "why": app.tray_why,
+                 "minimizeToTray": app.settings.get("minimizeToTray", True) is not False},
+        "ui": app.take_ui_request(),
         "features": {"ops": bool(app.jobs), "image": bool(app.jobs), "access": bool(app.jobs), "speed": bool(app.jobs and app.jobs.speed), "space": bool(app.jobs and app.jobs.space),
                      "smart": bool(app.jobs and app.jobs.smart)},
     }
@@ -655,6 +689,7 @@ def open_native_window(app: App, url: str):
     win = webview.create_window(APP_NAME, url, min_size=WINDOW_MIN, text_select=True, zoomable=False,
                                 background_color="#f3f5f9", **kw)
     win.events.closed += lambda: app.on_window_closed(win)
+    win.events.minimized += lambda: app.tray.on_minimized(win) if app.tray else None
     state = _wire_geometry_saving(app, win)
 
     def on_shown():
@@ -696,7 +731,16 @@ def run_windowed(app: App, url: str, sd: str, verbose: bool) -> bool:
     webview.settings["ALLOW_DOWNLOADS"] = False
     webview.settings["OPEN_EXTERNAL_LINKS_IN_BROWSER"] = True
     open_native_window(app, url)
-    webview.start(gui=gui_backend(), private_mode=False, storage_path=webview_storage_dir(sd),
+    start_in_gui = None
+    try:
+        import dw_tray
+        app.tray = dw_tray.Tray(app)
+        app.tray.start_before_gui()          # Windows / macOS (pystray)
+        start_in_gui = app.tray.start_in_gui  # Linux (Qt, on pywebview's GUI thread)
+    except Exception as e:
+        app.tray_why = str(e)
+        app.info(f"No tray icon: {e}")
+    webview.start(start_in_gui, gui=gui_backend(), private_mode=False, storage_path=webview_storage_dir(sd),
                   icon=icon_path(), debug=verbose)
     return True
 
@@ -745,7 +789,13 @@ def main(argv=None) -> int:
     ap.add_argument("--no-open", action="store_true", help="just run the server; print the URL")
     ap.add_argument("--verbose", action="store_true", help="log HTTP requests / enable devtools")
     ap.add_argument("--fixture", help="show a saved inventory JSON instead of this machine's disks")
+    ap.add_argument("--after-update", type=int, metavar="PID", help=argparse.SUPPRESS)   # started by the updater
     ns = ap.parse_args(raw)
+
+    import dw_update
+    if ns.after_update:
+        dw_update.wait_for_exit(ns.after_update)
+    dw_update.cleanup_after_update()
 
     sd = state_dir()
     if not ns.no_open:
@@ -758,7 +808,12 @@ def main(argv=None) -> int:
 
     windowed = not (ns.browser or ns.no_open)
     app = App(windowed=windowed, fixture=ns.fixture)
+    # what a restart after an update passes on (same mode, same port in server mode)
+    app.launch_args = (["--browser"] if ns.browser else []) + (["--no-open", "--port", str(ns.port)] if ns.no_open else []) \
+        + (["--verbose"] if ns.verbose else [])
     attach_jobs(app)
+    app.updater = dw_update.Updater(app)
+    app.updater.check_at_start()
     Handler.app = app
     server = QuietServer(("127.0.0.1", ns.port), Handler)
     server.verbose = ns.verbose
@@ -773,6 +828,8 @@ def main(argv=None) -> int:
 
     def cleanup():
         app.stop_tools()
+        if app.tray:
+            app.tray.stop()
         if not ns.no_open:
             try:
                 os.remove(instance_file)

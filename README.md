@@ -4,7 +4,7 @@ DiskWorks is a disk and partition manager for people who would rather not open a
 terminal. It shows your drives the way Windows Disk Management does and offers the
 detailed operations of GParted, on Windows, Linux and macOS, from one window.
 
-**Status: 0.3.3** (Windows x64 and Linux x86_64 built and tested here; macOS Apple Silicon
+**Status: 0.4.0** (Windows x64 and Linux x86_64 built and tested here; macOS Apple Silicon
 builds with `./build-mac.sh`, see `MACOS.md` — not yet run on a Mac). See
 `ARCHITECTURE.md` for how it is built, `REQUIREMENTS.md` for what it must do, what is
 done and what was deliberately left out, and `CHANGELOG.md` for releases.
@@ -24,10 +24,18 @@ native window; `--browser` works with the standard library alone). Build:
 | **Space** | DaisyDisk-style rings or a WizTree-style treemap of what fills a drive or folder, the largest files anywhere in the scan and the totals per file type; click into folders, move files to the Recycle Bin / Trash or delete them, reveal them in the file manager. |
 | **Log** | Every command the app ran, with its output. |
 
-**Self-contained and offline.** Everything DiskWorks needs is inside the one
+**Self-contained, online only for updates.** Everything DiskWorks needs is inside the one
 executable: the partition and filesystem tools on Linux, the Windows-side helpers,
-and the drivers it may offer to install. It never phones home and never downloads
-anything at run time.
+and the drivers it may offer to install. The only time it goes online is to check for and
+install an update from GitHub: at each launch (it then offers *Update now* or *Skip for
+now*; About turns the launch check off) and when you click *Check for updates* (About, the
+tray menu, or the version pill). No telemetry.
+
+**Updates and the tray.** GitHub builds Windows, Linux and macOS binaries for every version
+(`.github/workflows/release.yml`) and publishes them on the release `v<version>`. DiskWorks
+shows what is new, downloads its own platform's binary, checks its SHA-256, replaces itself
+and restarts. While it runs, a DiskWorks icon sits in the system tray (the menu bar on a Mac);
+minimizing the window hides it there (*Minimize to tray*, on by default).
 
 **Current version:** see `CHANGELOG.md`. Once code exists the version lives once in
 `diskworks.py` (`VERSION`) and is shown in the app's header; clicking it opens the

@@ -1,0 +1,186 @@
+# Builds DiskWorks for Windows, Linux and macOS on GitHub's runners (PyInstaller cannot
+# cross-compile) and publishes them on the release v<version>:
+#   DiskWorks-<v>-win64.exe   DiskWorks-<v>-linux-x86_64   DiskWorks-<v>-mac-arm64.zip
+# each with a <asset>.sha256.  The release stays a pre-release until all three are built;
+# the in-app updater (dw_update.py) only offers full releases.
+name: Build and release
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["**.md"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Version
+        id: ver
+        run: echo "version=$(sed -nE 's/^VERSION = "([^"]+)".*/\1/p' diskworks.py)" >> "$GITHUB_OUTPUT"
+      - name: Create the release (pre-release until every platform is built)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V=${{ steps.ver.outputs.version }}
+          if gh release view "v$V" >/dev/null 2>&1; then
+            gh release edit "v$V" --prerelease
+          else
+            gh release create "v$V" --target "$GITHUB_SHA" --prerelease --title "DiskWorks $V" \
+              --notes "DiskWorks $V for Windows, Linux and macOS. What changed: see CHANGELOG.md. DiskWorks updates itself from here (About > Check for updates)."
+          fi
+
+  windows:
+    needs: release
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Python packages
+        run: python -m pip install --quiet -r requirements.txt
+      - name: Bundled tools (7-Zip, smartctl)
+        run: python fetch-helpers.py win64
+      - name: Unit checks
+        run: |
+          python tools/smart_unit.py
+          python tools/update_unit.py
+      - name: Build DiskWorks.exe
+        run: |
+          set -o pipefail
+          if ! python build.py --no-mac 2>&1 | tee build.log; then
+            tail -n 60 build.log | python -c "import sys; print('::error title=build.py failed::' + sys.stdin.read().replace('%','%25').replace('\r','').replace('\n','%0A'))"
+            exit 1
+          fi
+      - name: Smoke-test the exe headless
+        shell: pwsh
+        run: |
+          $p = Start-Process dist\win64\DiskWorks.exe -ArgumentList '--no-open','--port','8799' -PassThru
+          $s = $null
+          for ($i = 0; $i -lt 120 -and -not $s; $i++) { Start-Sleep -Milliseconds 500; try { $s = Invoke-RestMethod http://127.0.0.1:8799/api/status } catch {} }
+          if (-not $s) { throw "DiskWorks.exe did not answer" }
+          "$($s.version) $($s.platform) frozen=$($s.frozen) update=$($s.update | ConvertTo-Json -Compress)"
+          if ($s.version -ne '${{ needs.release.outputs.version }}' -or -not $s.frozen) { Write-Output "::error title=smoke test::wrong version or not frozen"; exit 1 }
+          try { Invoke-RestMethod -Method Post http://127.0.0.1:8799/api/quit -Body '{}' | Out-Null } catch {}
+          Start-Sleep 2; Stop-Process -Id $p.Id -ErrorAction SilentlyContinue
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V=${{ needs.release.outputs.version }}
+          A=DiskWorks-$V-win64.exe
+          cp dist/win64/DiskWorks.exe "$A"
+          python -c "import hashlib,sys; n=sys.argv[1]; open(n+'.sha256','w').write(hashlib.sha256(open(n,'rb').read()).hexdigest()+'  '+n+'\n')" "$A"
+          gh release upload "v$V" "$A" "$A.sha256" --clobber
+
+  linux:
+    needs: release
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Partition and filesystem tools to bundle
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq fdisk gdisk e2fsprogs xfsprogs btrfs-progs ntfs-3g \
+            dosfstools exfatprogs f2fs-tools fatresize cryptsetup-bin 7zip hfsprogs smartmontools \
+            libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-image0 libxcb-render-util0 libxcb-xinerama0 libxcb-xkb1 libxcb-shape0 libxcb-randr0 libnss3 libxcomposite1 libxdamage1 libxrandr2 libxtst6 libegl1 libgl1
+      - name: Python packages
+        run: python -m pip install --quiet -r requirements.txt
+      - name: Collect the bundled tools
+        run: python fetch-helpers.py linux-tools
+      - name: Unit checks
+        run: |
+          python tools/mac_unit.py
+          python tools/smart_unit.py
+          python tools/update_unit.py
+      - name: Build DiskWorks
+        run: |
+          set -o pipefail
+          if ! python build.py --no-mac 2>&1 | tee build.log; then
+            tail -n 60 build.log | python -c "import sys; print('::error title=build.py failed::' + sys.stdin.read().replace('%','%25').replace('\r','').replace('\n','%0A'))"
+            exit 1
+          fi
+      - name: Smoke-test the binary headless
+        run: |
+          dist/linux-x86_64/DiskWorks --no-open --port 8799 > app.log 2>&1 &
+          for i in $(seq 1 120); do curl -sf http://127.0.0.1:8799/api/ping && break; sleep 0.5; done
+          curl -sf http://127.0.0.1:8799/api/status | python -c "import json,sys; s=json.load(sys.stdin); print(s['version'], s['frozen'], s['bundle']); assert s['version']=='${{ needs.release.outputs.version }}' and s['frozen'] and s['bundle']['tools'] > 40"
+          curl -sf -X POST http://127.0.0.1:8799/api/quit -d '{}' || true
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V=${{ needs.release.outputs.version }}
+          A=DiskWorks-$V-linux-x86_64
+          cp dist/linux-x86_64/DiskWorks "$A"
+          sha256sum "$A" > "$A.sha256"
+          gh release upload "v$V" "$A" "$A.sha256" --clobber
+
+  mac:
+    needs: release
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: macOS backend unit checks
+        run: |
+          python tools/mac_unit.py
+          python tools/smart_unit.py
+          python tools/update_unit.py
+      - name: Build DiskWorks.app
+        env:
+          PYTHON: python
+        run: |
+          set -o pipefail
+          if ! sh ./build-mac.sh 2>&1 | tee build.log; then
+            # surface the end of the log as an annotation (readable without log access)
+            tail -n 60 build.log | python -c "import sys; print('::error title=build-mac.sh failed::' + sys.stdin.read().replace('%','%25').replace('\r','').replace('\n','%0A'))"
+            exit 1
+          fi
+      - name: Smoke-test the app headless
+        run: |
+          APP=dist/mac-arm64/DiskWorks.app/Contents/MacOS/DiskWorks
+          "$APP" --no-open --port 8799 > app.log 2>&1 &
+          for i in $(seq 1 120); do curl -sf http://127.0.0.1:8799/api/ping && break; sleep 0.5; done
+          curl -sf http://127.0.0.1:8799/api/status | python -c "import json,sys; s=json.load(sys.stdin); print(s['version'], s['platform'], s['frozen']); assert s['version']=='${{ needs.release.outputs.version }}' and s['frozen']"
+          curl -sf -X POST http://127.0.0.1:8799/api/quit -d '{}' || true
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V=${{ needs.release.outputs.version }}
+          A=DiskWorks-$V-mac-arm64.zip
+          test -f "dist/mac-arm64/$A" || ditto -c -k --keepParent dist/mac-arm64/DiskWorks.app "dist/mac-arm64/$A"
+          cp "dist/mac-arm64/$A" "$A"
+          shasum -a 256 "$A" > "$A.sha256"
+          cp tools/BUILD-ON-MAC.txt .
+          gh release upload "v$V" "$A" "$A.sha256" BUILD-ON-MAC.txt --clobber
+
+  publish:
+    needs: [release, windows, linux, mac]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Make v${{ needs.release.outputs.version }} the latest full release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release edit "v${{ needs.release.outputs.version }}" --prerelease=false --latest

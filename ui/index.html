@@ -239,7 +239,14 @@
     <h4>Space</h4><p>Shows what fills a drive as rings or as a treemap you can click into, lists the largest files and the totals per file type, and lets you move files to the Recycle Bin / Trash or delete them.</p>
     <h4>Log</h4><p>Every command the app ran, with its output.</p>
     <h4>Administrator rights</h4><p>Looking never needs them. The first change asks once (Windows UAC / Linux password / macOS administrator prompt) and starts a small helper process that does the privileged work for the rest of the session. The window itself never runs as administrator.</p>
-    <p class="hint">Version <span id="aboutVer"></span>. Everything is bundled; nothing is downloaded at run time.</p>
+    <h4>Options</h4>
+    <div class="opts">
+      <label class="chk"><input type="checkbox" id="optTray"> Minimize to the system tray <span class="hint">(the menu bar on a Mac) — the icon brings the window back</span></label>
+      <span class="hint" id="optTrayWhy"></span>
+      <label class="chk"><input type="checkbox" id="optUpdate"> Check for updates when DiskWorks starts <span class="hint">(asks GitHub, sends nothing else; a newer version is offered with Update now / Skip for now)</span></label>
+      <div><button class="btn small" id="optCheck">Check for updates now…</button></div>
+    </div>
+    <p class="hint">Version <span id="aboutVer"></span>. Everything DiskWorks needs is bundled. It only goes online when you check for or install an update.</p>
   </div>
 </dialog>
 
@@ -253,6 +260,15 @@
   <div class="dlg-head"><h3 id="cfTitle">Are you sure?</h3><button class="icon-btn" data-close>✕</button></div>
   <div class="dlg-body" id="cfBody"></div>
   <div class="dlg-foot"><span class="grow"></span><button class="btn" data-close>Cancel</button><button id="cfOk" class="btn danger" disabled>Continue</button></div>
+</dialog>
+
+<dialog id="dlgUpdate" class="dlg">
+  <div class="dlg-head"><h3>Update DiskWorks</h3><button class="icon-btn" data-close>✕</button></div>
+  <div class="dlg-body" id="upBody"></div>
+  <div class="dlg-foot"><span class="grow"></span>
+    <button id="upCheck" class="btn">Check again</button>
+    <button id="upClose" class="btn" data-close>Close</button>
+    <button id="upInstall" class="btn primary hidden">Update now</button></div>
 </dialog>
 
 <dialog id="dlgHealth" class="dlg wide">
