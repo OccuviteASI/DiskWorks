@@ -105,7 +105,7 @@ did and did not run.
 
 | File | Role |
 |---|---|
-| `diskworks.py` | Entry point. `App` (settings, inventory, jobs, helper handle), `Handler` (routes), `QuietServer`, native window helpers, `main()`, `--helper` dispatch before argparse. **Single source of `VERSION`.** |
+| `diskworks.py` | Entry point. `App` (settings, inventory, jobs, helper handle), `Handler` (routes), `QuietServer`, native window helpers, `main()`, `--helper` dispatch before argparse. **Single source of `VERSION`.** Window restore moves a window that would open off every screen back onto the first one (Windows `MonitorFromPoint`; elsewhere `list(webview.screens)`, 0.4.1). |
 | `dw_inventory.py` | Data model `Disk`, `Partition`, `Volume`, `Gap`, `Inventory` (dataclasses → JSON); protection flags (§4); gap computation and alignment; layout hash; the unprivileged backends (`win_inventory()`, `linux_inventory()`) and the privileged refinement the helper returns (`inventory` verb). |
 | `dw_ipc.py` | Launching the helper (RunAs / pkexec), key hand-over, `Listener` / `Client` wrappers, frame encoding, request ids, cancellation, liveness. |
 | `dw_helper.py` | The privileged side: connects back, serves verbs one job at a time (`ping` / `cancel` / `quit` answered immediately), refines the inventory (signatures, BitLocker, WSL state), watches the parent pid. Verb tables from `dw_ops_exec`, `dw_image`, `dw_access` are merged in. |

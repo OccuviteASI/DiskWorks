@@ -4,6 +4,14 @@ All notable changes to DiskWorks. The version number is defined once, in
 `diskworks.py` (`VERSION`), and read by the UI and `build.py`. Clicking the version
 pill in the app shows the section below that matches the running version.
 
+## 0.4.1 - 2026-11-13
+
+- **Fix (Linux, macOS):** a window that reopened where a disconnected monitor used to be
+  now moves back onto a screen. The check always failed on these platforms because
+  pywebview's screen list is a proxy that only pretends to be a function; DiskWorks now
+  reads it as the list it is. (Windows was not affected.)
+- First release published to test the online update from 0.4.0.
+
 ## 0.4.0 - 2026-11-13
 
 - **Update DiskWorks online.** Every time DiskWorks starts it asks GitHub for the newest
