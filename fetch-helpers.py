@@ -33,11 +33,15 @@ TAG = "win64" if IS_WIN else "linux-x86_64"
 # smartmontools' smartctl reads drive health (the Disks tab, 0.3.0).  ISO mode (wimlib,
 # UEFI:NTFS) and the driver offers (WinBtrfs) arrive with later builds.
 SEVENZIP_VERSION = "2501"
+SEVENZIP_DOTTED = "25.01"
 SMARTMONTOOLS_VERSION = "7.5"
 DOWNLOADS: dict[str, dict] = {
-    "7zr": {"url": "https://www.7-zip.org/a/7zr.exe", "sha256": "ad4c82fadcbdf93c03b4fc440f300509c7d60c5c2f4d183e35d9d70d6957037d",
+    # 7-Zip's own GitHub release: versioned URLs (www.7-zip.org/a/7zr.exe always serves the newest build,
+    # so its pin broke when 7-Zip shipped a new version). The x64 installer there is byte-identical to the
+    # one pinned from 7-zip.org.
+    "7zr": {"url": f"https://github.com/ip7z/7zip/releases/download/{SEVENZIP_DOTTED}/7zr.exe", "sha256": "27cbe3d5804ad09e90bbcaa916da0d5c3b0be9462d0e0fb6cb54be5ed9030875",
             "kind": "bin", "dest": "bin/win64/7zip", "files": ["7zr.exe"]},
-    "7zip": {"url": f"https://www.7-zip.org/a/7z{SEVENZIP_VERSION}-x64.exe", "sha256": "78afa2a1c773caf3cf7edf62f857d2a8a5da55fb0fff5da416074c0d28b2b55f",
+    "7zip": {"url": f"https://github.com/ip7z/7zip/releases/download/{SEVENZIP_DOTTED}/7z{SEVENZIP_VERSION}-x64.exe", "sha256": "78afa2a1c773caf3cf7edf62f857d2a8a5da55fb0fff5da416074c0d28b2b55f",
              "kind": "7zsfx", "dest": "bin/win64/7zip", "files": ["7z.exe", "7z.dll", "License.txt"]},
     # the NSIS installer is unpacked with the full 7z.exe fetched above; only the x64 smartctl and the GPL text are kept
     "smartmontools": {"url": f"https://sourceforge.net/projects/smartmontools/files/smartmontools/{SMARTMONTOOLS_VERSION}/smartmontools-{SMARTMONTOOLS_VERSION}.win32-setup.exe/download",

@@ -528,7 +528,7 @@ build-mac.sh  (on the Mac: xcode-select gate -> .venv -> pip -r requirements.txt
    -> dist/mac-arm64/DiskWorks-<ver>-mac-arm64.zip (ditto -c -k --keepParent)
 tools/pack_source.py -> dist/DiskWorks-src-<ver>.zip (the tree without dist/, bin/, caches)
 .github/workflows/release.yml  (GitHub, every push to main; 0.4.0, was build-mac.yml in 0.3.3)
-   release (pre-release v<ver>) -> windows-latest | ubuntu-24.04 | macos-14, each: unit checks,
+   release (pre-release v<ver>) -> windows-latest | ubuntu-24.04 | macos-15, each: unit checks,
    build, headless start check, upload <asset> + <asset>.sha256 -> publish (full release, latest)
    assets: DiskWorks-<ver>-win64.exe, DiskWorks-<ver>-linux-x86_64, DiskWorks-<ver>-mac-arm64.zip
    the in-app updater (dw_update.py) reads only full releases (D-040)

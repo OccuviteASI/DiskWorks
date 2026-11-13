@@ -28,7 +28,10 @@ pill in the app shows the section below that matches the running version.
   `build-mac.yml`) builds Windows, Linux and macOS for every push to `main`, runs the unit
   checks and a headless start on each, and publishes `DiskWorks-<v>-win64.exe`,
   `DiskWorks-<v>-linux-x86_64` and `DiskWorks-<v>-mac-arm64.zip` with `.sha256` files on
-  the release `v<v>`, which becomes the latest release once all three are in.
+  the release `v<v>`, which becomes the latest release once all three are in. The Mac build
+  moved to GitHub's `macos-15` runner (macOS 14 runners are retired), and the Windows build
+  fetches 7-Zip 25.01 from 7-Zip's versioned GitHub release (the unversioned 7-zip.org link
+  now serves a newer build, which the pinned checksum rightly refused).
 
 ## 0.3.3 - 2026-10-05
 
