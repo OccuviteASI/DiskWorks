@@ -54,7 +54,12 @@ jobs:
       - name: Python packages
         run: python -m pip install --quiet -r requirements.txt
       - name: Bundled tools (7-Zip, smartctl)
-        run: python fetch-helpers.py win64
+        run: |
+          set -o pipefail
+          if ! python fetch-helpers.py win64 2>&1 | tee fetch.log; then
+            tail -n 40 fetch.log | python -c "import sys; print('::error title=fetch-helpers.py failed::' + sys.stdin.read().replace('%','%25').replace('\r','').replace('\n','%0A'))"
+            exit 1
+          fi
       - name: Unit checks
         run: |
           python tools/smart_unit.py
