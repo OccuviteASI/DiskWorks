@@ -4,6 +4,16 @@ All notable changes to DiskWorks. The version number is defined once, in
 `diskworks.py` (`VERSION`), and read by the UI and `build.py`. Clicking the version
 pill in the app shows the section below that matches the running version.
 
+## 0.4.3 - 2026-11-13
+
+- **Fix (Windows update):** the previous version's `DiskWorks.old.exe` was left beside the
+  new one. Windows keeps the old file locked until the one-file launcher of the old
+  DiskWorks has exited, which happens a moment after the app inside it, so the single
+  delete attempt at start-up failed. The new version now waits for that launcher too, and
+  keeps retrying the delete in the background for two minutes. A leftover from an earlier
+  update is removed the same way, including the `DiskWorks.old-<number>.exe` name used when
+  an older `.old.exe` was still in the way.
+
 ## 0.4.2 - 2026-11-13
 
 Updates and the tray now follow the same standard as LinkTest.

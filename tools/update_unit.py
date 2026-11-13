@@ -66,6 +66,30 @@ try:
 except RuntimeError:
     check(True, "no checksum -> refuse to install")
 
+print("leftovers after an update")
+import tempfile, time as _t
+with tempfile.TemporaryDirectory() as d:
+    names = ["DiskWorks.exe", "DiskWorks.old.exe", "DiskWorks.old-1794600000.exe", "DiskWorks.exe.sha256",
+             "Other.old.exe", "DiskWorks-notes.txt", ".DiskWorks-update-0.4.3.part", ".DiskWorks-update-0.4.4.part"]
+    for n in names:
+        open(os.path.join(d, n), "w").close()
+    old = os.path.join(d, ".DiskWorks-update-0.4.3.part")
+    os.utime(old, (_t.time() - 3600, _t.time() - 3600))
+    got = sorted(os.path.basename(p) for p in u.leftovers(d, "DiskWorks.exe"))
+    check(got == [".DiskWorks-update-0.4.3.part", "DiskWorks.old-1794600000.exe", "DiskWorks.old.exe"],
+          f"old exe, timestamped old exe, stale download only: {got}")
+    os.mkdir(os.path.join(d, "DiskWorks.old.app"))
+    mac = sorted(os.path.basename(p) for p in u.leftovers(d, "DiskWorks.app"))
+    check(mac == [".DiskWorks-update-0.4.3.part", "DiskWorks.old.app"], f"macOS: DiskWorks.old.app (and the stale download): {mac}")
+    check(all(u._remove(p) for p in u.leftovers(d, "DiskWorks.exe")) and not u.leftovers(d, "DiskWorks.exe"), "removed")
+    check(sorted(os.listdir(d)) == sorted(["DiskWorks.exe", "DiskWorks.exe.sha256", "Other.old.exe", "DiskWorks-notes.txt",
+                                            ".DiskWorks-update-0.4.4.part", "DiskWorks.old.app"]), "nothing else touched")
+
+print("--after-update")
+check(u.parse_pids("1234") == [1234] and u.parse_pids("1234,567") == [1234, 567], "one pid (0.4.0-0.4.2) or pid,launcher pid")
+check(u.parse_pids(None) == [] and u.parse_pids("x,0,-3") == [], "junk ignored")
+check(u.own_pids() == [os.getpid()], "from source: no launcher pid")
+
 print("install target")
 t, why = u.install_target()
 check(t is None and "source" in why, "running from source is never overwritten")

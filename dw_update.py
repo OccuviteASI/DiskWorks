@@ -20,8 +20,10 @@ Swap per platform (the running file is never written in place):
   Linux    os.replace() of the new file over the old path (the running inode lives on).
   macOS    the new DiskWorks.app is unpacked with ditto beside the old one, which is moved
            aside and deleted at the next start.
-Then the new binary is started with --after-update <pid>; it waits for this process to
-exit before it takes over (instance.json, the port), and this one shuts down.
+Then the new binary is started with --after-update <pid>[,<launcher pid>]; it waits for this
+process (and the one-file launcher that keeps the old .exe open) to exit before it takes over
+(instance.json, the port), and this one shuts down.  The new one then deletes the renamed old
+binary, retrying for two minutes while Windows still holds it.
 """
 from __future__ import annotations
 
@@ -95,33 +97,92 @@ def install_target() -> tuple[str | None, str]:
     return target, ""
 
 
-def cleanup_after_update() -> None:
-    """Delete what the previous update left: the renamed old binary / app and stray downloads."""
+def leftovers(folder: str, base: str, now: float | None = None) -> list[str]:
+    """What an update leaves beside the binary: the renamed old one (DiskWorks.old.exe, or
+    DiskWorks.old-<time>.exe when an older .old.exe was still locked; DiskWorks.old.app on
+    macOS) and stray downloads older than 10 minutes."""
+    now = now or time.time()
+    stem, ext = os.path.splitext(base)
+    out = []
+    for name in os.listdir(folder):
+        p = os.path.join(folder, name)
+        if name == stem + OLD_SUFFIX + ext or (name.startswith(stem + OLD_SUFFIX + "-") and name.endswith(ext)):
+            out.append(p)
+        elif name.startswith(".DiskWorks-update-"):
+            try:
+                if now - os.path.getmtime(p) > 600:
+                    out.append(p)
+            except OSError:
+                pass
+    return out
+
+
+def _remove(p: str) -> bool:
+    try:
+        if os.path.isdir(p) and not os.path.islink(p):
+            shutil.rmtree(p)
+        else:
+            os.remove(p)
+        return True
+    except FileNotFoundError:
+        return True
+    except OSError:
+        return False
+
+
+def cleanup_after_update(retry_for: float = 120.0) -> None:
+    """Delete what the previous update left.  On Windows the old exe stays locked until its
+    one-file launcher process has exited, which can be a little after the app inside it, so
+    whatever cannot be removed yet is retried in the background for up to two minutes (and
+    again at the next start)."""
     target, _ = install_target()
     if not target:
         return
-    folder = os.path.dirname(target)
-    base = os.path.basename(target)
-    stem, ext = os.path.splitext(base)
-    for name in os.listdir(folder):
-        p = os.path.join(folder, name)
-        old = name in (stem + OLD_SUFFIX + ext, base + OLD_SUFFIX) or (name.startswith(".DiskWorks-update-") and time.time() - os.path.getmtime(p) > 600)
-        if not old:
-            continue
+    folder, base = os.path.dirname(target), os.path.basename(target)
+    left = [p for p in leftovers(folder, base) if not _remove(p)]
+    if not left or retry_for <= 0:
+        return
+
+    def retry():
+        t0 = time.time()
+        pending = list(left)
+        while pending and time.time() - t0 < retry_for:
+            time.sleep(2)
+            pending = [p for p in pending if not _remove(p)]
+    threading.Thread(target=retry, daemon=True, name="update-cleanup").start()
+
+
+def own_pids() -> list[int]:
+    """This process and, for a one-file build, the launcher process that unpacked it (it keeps
+    the .exe open until it exits).  A one-folder build (macOS .app) has no launcher."""
+    pids = [os.getpid()]
+    meipass = getattr(sys, "_MEIPASS", "") or ""
+    if getattr(sys, "frozen", False) and os.path.basename(meipass.rstrip("/\\")).startswith("_MEI"):
         try:
-            if os.path.isdir(p) and not os.path.islink(p):
-                shutil.rmtree(p)
-            else:
-                os.remove(p)
+            ppid = os.getppid()
+            if ppid and ppid != 1:
+                pids.append(ppid)
         except OSError:
-            pass   # Windows: the old exe can still be closing; the next start retries
+            pass
+    return pids
 
 
-def wait_for_exit(pid: int, timeout: float = 45.0) -> None:
-    """--after-update: let the previous instance finish shutting down first."""
+def parse_pids(value: str | int | None) -> list[int]:
+    """--after-update takes "<pid>" (0.4.0 - 0.4.2) or "<pid>,<launcher pid>" (0.4.3+)."""
+    out = []
+    for part in str(value or "").split(","):
+        part = part.strip()
+        if part.isdigit() and int(part) > 0:
+            out.append(int(part))
+    return out
+
+
+def wait_for_exit(pids, timeout: float = 45.0) -> None:
+    """--after-update: let the previous instance (and its launcher) finish shutting down first."""
     import dw_helper
+    pids = pids if isinstance(pids, list) else parse_pids(pids)
     t0 = time.time()
-    while time.time() - t0 < timeout and dw_helper.parent_alive(pid):
+    while time.time() - t0 < timeout and any(dw_helper.parent_alive(p) for p in pids):
         time.sleep(0.25)
 
 
@@ -380,7 +441,7 @@ class Updater:
         env = dict(os.environ, PYINSTALLER_RESET_ENVIRONMENT="1")   # a fresh onefile extraction, not ours
         for k in ("_MEIPASS2", "_PYI_APPLICATION_HOME_DIR", "_PYI_ARCHIVE_FILE", "_PYI_PARENT_PROCESS_LEVEL", "_PYI_SPLASH_IPC"):
             env.pop(k, None)
-        args = list(getattr(self.app, "launch_args", []) or []) + ["--after-update", str(os.getpid())]
+        args = list(getattr(self.app, "launch_args", []) or []) + ["--after-update", ",".join(str(p) for p in own_pids())]
         if IS_MAC:
             cmd = ["/usr/bin/open", "-n", target, "--args"] + args
             kw: dict = {}

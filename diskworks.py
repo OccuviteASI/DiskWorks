@@ -27,7 +27,7 @@ import dw_fs
 import dw_inventory as di
 
 APP_NAME = "DiskWorks"
-VERSION = "0.4.2"
+VERSION = "0.4.3"
 IS_WIN = os.name == "nt"
 IS_LINUX = sys.platform.startswith("linux")
 IS_MAC = sys.platform == "darwin"
@@ -891,12 +891,12 @@ def main(argv=None) -> int:
     ap.add_argument("--no-open", action="store_true", help="just run the server; print the URL")
     ap.add_argument("--verbose", action="store_true", help="log HTTP requests / enable devtools")
     ap.add_argument("--fixture", help="show a saved inventory JSON instead of this machine's disks")
-    ap.add_argument("--after-update", type=int, metavar="PID", help=argparse.SUPPRESS)   # started by the updater
+    ap.add_argument("--after-update", metavar="PID[,PID]", help=argparse.SUPPRESS)   # started by the updater
     ns = ap.parse_args(raw)
 
     import dw_update
     if ns.after_update:
-        dw_update.wait_for_exit(ns.after_update)
+        dw_update.wait_for_exit(dw_update.parse_pids(ns.after_update))
     dw_update.cleanup_after_update()
 
     sd = state_dir()
